@@ -1,2 +1,0 @@
-# secur-ocaml
-Secure OCaml
