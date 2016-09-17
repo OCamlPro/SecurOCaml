@@ -27,7 +27,7 @@ OCAMLDOC=ocamldoc.opt $(INCLUDES) -w -40
 # linking order of the corresponding cmos.  All the
 # namespaces are linked before the ml files.
 
-NS=generic_core.ml generic_util.ml
+NS=generic_core.ml generic_util.ml generic_fun.ml
 NSI=
 
 ML=\
@@ -99,7 +99,7 @@ generic.cma: generic_util_obj_stub.o $(NS:.ml=.cmo) $(ML:.ml=.cmo)
 
 doc/index.html: lib $(NS) $(NSI) $(ML) $(MLI)
 	mkdir -p doc
-	$(OCAMLDOC) -html -hide Generic_util,Generic_core -d doc $(wordlist 2, $(words $^), $^)
+	$(OCAMLDOC) -html -t "Generic Programming Library" -intro intro.html -hide Generic_util,Generic_core -d doc $(wordlist 2, $(words $^), $^)
 
 doc/dep.dot: lib $(NS) $(NSI) $(ML) $(MLI)
 	mkdir -p doc
