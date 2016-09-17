@@ -6,8 +6,8 @@ open Generic_util
     matching. *)
 module T = struct
   type 'a product =
-  | Pnil : unit product
-  | Pcons : 'a Ty.ty * 'b product -> ('a * 'b) product
+  | Nil : unit product
+  | Cons : 'a Ty.ty * 'b product -> ('a * 'b) product
 end
 include T
 
@@ -15,8 +15,8 @@ include T
 type 'a t = 'a product
 
 module Build = struct
-  let pc x y = Pcons (x,y)
-  let p0 = Pnil
+  let pc x y = Cons (x,y)
+  let p0 = Nil
   let p1 x = pc x p0
   let p2 x = Fun.res1 (pc x) p1
   let p3 x = Fun.res2 (pc x) p2
@@ -33,8 +33,8 @@ let uncurry2 f = Fun.res1 uncurry1 (Fun.uncurry f)
 let rec fold : type a . (Ty.ty' -> 'b -> 'b) -> 'b -> a t -> 'b
   = fun c n ->
   function
-  | Pnil -> n
-  | Pcons (t,p) -> c (Ty.E t) (fold c n p)
+  | Nil -> n
+  | Cons (t,p) -> c (Ty.E t) (fold c n p)
 
 let length p =
   fold (fun _ n -> n + 1) 0 p
@@ -47,12 +47,12 @@ type 'a tuple = 'a t * 'a
 type dynprod = Dynprod : 'a tuple -> dynprod
 
 let rec list_of_dynprod = function
-  | Dynprod (Pnil,()) -> []
-  | Dynprod (Pcons (t, ts), (x,xs)) ->
+  | Dynprod (Nil,()) -> []
+  | Dynprod (Cons (t, ts), (x,xs)) ->
      Ty.Dyn (t,x) :: list_of_dynprod (Dynprod (ts, xs))
 
 let rec dynprod_of_list = function
-  | [] -> Dynprod (Pnil,())
+  | [] -> Dynprod (Nil,())
   | Ty.Dyn (t,x) :: ds ->
     let Dynprod (ts, xs) = dynprod_of_list ds in
-    Dynprod (Pcons (t, ts), (x,xs))
+    Dynprod (Cons (t, ts), (x,xs))

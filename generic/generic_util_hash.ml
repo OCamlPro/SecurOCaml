@@ -1,5 +1,7 @@
 (** Extra functions on hashtables *)
 
+open Generic_util
+
 (** [safe_find], catches the [Not_found] exception with a
    default value:
 {[
@@ -17,5 +19,5 @@ let safe_find table key some none =
 or update it with [f (table[key])].
 *)
 let update table key upd init_val =
-  let new_val = upd (safe_find table key Generic_util_fun.id init_val)
+  let new_val = upd (safe_find table key Fun.id init_val)
   in Hashtbl.replace table key new_val

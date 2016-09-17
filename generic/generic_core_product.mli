@@ -15,8 +15,8 @@ open Ty.T
     matching. *)
 module T : sig
   type 'a product =
-  | Pnil : unit product
-  | Pcons : 'a ty * 'b product -> ('a * 'b) product
+  | Nil : unit product
+  | Cons : 'a ty * 'b product -> ('a * 'b) product
 end
 
 (** Synonym, so that [Product.T.product] might be refered to as [Product.t] *)

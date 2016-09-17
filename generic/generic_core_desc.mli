@@ -364,8 +364,8 @@ module Fields : sig
         order are they are provided in the list.
     *)
     type ('p, 'r) fields =
-        Fnil : (unit, 'r) fields
-      | Fcons : ('t, 'r) Field.t * ('ts, 'r) fields -> ('t * 'ts, 'r) fields
+      | Nil : (unit, 'r) fields
+      | Cons : ('t, 'r) Field.t * ('ts, 'r) fields -> ('t * 'ts, 'r) fields
   end
 
   (** {b List of fields.}
@@ -374,7 +374,9 @@ module Fields : sig
         type ['r], it gathers all of the field types, in the same
         order are they are provided in the list.
   *)
-  type ('p, 'r) t =  ('p,'r) T.fields
+  type ('p, 'r) t =  ('p,'r) T.fields =
+    | Nil : (unit, 'r) t
+    | Cons : ('t, 'r) Field.t * ('ts, 'r) t -> ('t * 'ts, 'r) t
 
   val product : ('p, 'r) t -> 'p Product.t
   (** @return the list of types witnessing the product type ['p].
@@ -392,17 +394,20 @@ module Record : sig
         A record has a [name], a list of [fields] and an isomorphism [iso]
         between the product of the fields' types and the record type.
     *)
-    type ('p, 'r) record = {
-      name : string;
-      fields : ('p, 'r) Fields.t;
-      iso : ('p, 'r) Fun.iso;
-    }
+    type ('p, 'r) record =
+      { name : string
+      ; fields : ('p, 'r) Fields.t
+      ; iso : ('p, 'r) Fun.iso
+      }
   end
 
   (** {b Record.} The type [(p,r) t] represents the record
       type [r] isomorphic to the product type [p]. *)
-  type ('p,'r) t = ('p,'r) T.record
-
+  type ('p,'r) t = ('p,'r) T.record =
+    { name : string
+    ; fields : ('p, 'r) Fields.t
+    ; iso : ('p, 'r) Fun.iso
+    }
 
   val product : ('p, 'r) t -> 'p Product.t
   (** @return the list of field types witnessing the product type ['p] for the record type ['r].
@@ -410,6 +415,9 @@ module Record : sig
 
   val types_of_mutable_fields : ('p, 'r) t -> Ty.ty' list
   (** @return the list of the types of all mutable fields. *)
+
+  val tuple : ('p, 'r) t -> 'r -> 'p Product.tuple
+  (** @return a tuple of the fields of a record value. *)
 end (* Record *)
 
 (** Generic representation of an object's or a classe's method. *)
@@ -513,21 +521,9 @@ end (* Custom *)
     categories each with its specific description.
 *)
 
-type 'a t =
-  | Array      : 'e ty * (module Array.intf with type t = 'a and type elt = 'e) -> 'a t
-  | Product    : 'ts Product.t * ('ts , 'p) Fun.iso -> 'p t
-  | Record     : ('p,'r) Record.t -> 'r t
-  | Variant    : 'v Variant.t -> 'v t
-  | Extensible : 'a Ext.t -> 'a t
-  | Custom     : 'a Custom.t -> 'a t
-  | Class      : 'c Class.t  -> 'c t
-  | Synonym    : 'b ty * ('a,'b) Equal.t -> 'a t
-  | Abstract   : 'a t
-  | NoDesc     : 'a t
-
 (** One may open [T] to bring constructor names in scope, typically for pattern-matching. *)
 module T : sig
-  type 'a desc = 'a t =
+  type 'a desc =
     | Array      : 'e ty * (module Array.intf with type t = 'a and type elt = 'e) -> 'a desc
     | Product    : 'ts Product.t * ('ts , 'p) Fun.iso -> 'p desc
     | Record     : ('p,'r) Record.t -> 'r desc
@@ -539,3 +535,17 @@ module T : sig
     | Abstract   : 'a desc
     | NoDesc     : 'a desc
 end
+
+type 'a desc = 'a T.desc =
+    | Array      : 'e ty * (module Array.intf with type t = 'a and type elt = 'e) -> 'a desc
+    | Product    : 'ts Product.t * ('ts , 'p) Fun.iso -> 'p desc
+    | Record     : ('p,'r) Record.t -> 'r desc
+    | Variant    : 'v Variant.t -> 'v desc
+    | Extensible : 'a Ext.t -> 'a desc
+    | Custom     : 'a Custom.t -> 'a desc
+    | Class      : 'c Class.t  -> 'c desc
+    | Synonym    : 'b ty * ('a,'b) Equal.t -> 'a desc
+    | Abstract   : 'a desc
+    | NoDesc     : 'a desc
+
+type 'a t = 'a T.desc

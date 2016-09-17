@@ -1,3 +1,5 @@
+open Generic_util
+
 module O = Obj
 let first_non_constant_constructor_tag = O.first_non_constant_constructor_tag (* 0 *)
 let last_non_constant_constructor_tag = O.last_non_constant_constructor_tag (* 245 *)
@@ -12,23 +14,23 @@ type obj =
   | Int of int
   | Block of tag * O.t array
 
-let tag_view = let open O in function
-                            | t when t == lazy_tag         -> Lazy
-                            | t when t == closure_tag      -> Closure
-                            | t when t == object_tag       -> Object
-                            | t when t == infix_tag        -> Infix
-                            | t when t == forward_tag      -> Forward
-                            | t when t == abstract_tag     -> Abstract
-                            | t when t == string_tag       -> String
-                            | t when t == double_tag       -> Double
-                            | t when t == double_array_tag -> Double_array
-                            | t when t == custom_tag       -> Custom
-                            | t when t == unaligned_tag    -> Unaligned
-                            | t when t == out_of_heap_tag  -> Out_of_heap
-                            | t when t >= first_non_constant_constructor_tag
-                                     && t <= last_non_constant_constructor_tag -> Constructor t
-                            | t when t == int_tag -> Int
-                            | t -> raise (Invalid_argument (__MODULE__ ^ ".tag_view: " ^ string_of_int t))
+let tag_view = function
+  | t when t == O.lazy_tag         -> Lazy
+  | t when t == O.closure_tag      -> Closure
+  | t when t == O.object_tag       -> Object
+  | t when t == O.infix_tag        -> Infix
+  | t when t == O.forward_tag      -> Forward
+  | t when t == O.abstract_tag     -> Abstract
+  | t when t == O.string_tag       -> String
+  | t when t == O.double_tag       -> Double
+  | t when t == O.double_array_tag -> Double_array
+  | t when t == O.custom_tag       -> Custom
+  | t when t == O.unaligned_tag    -> Unaligned
+  | t when t == O.out_of_heap_tag  -> Out_of_heap
+  | t when t >= O.first_non_constant_constructor_tag
+        && t <= O.last_non_constant_constructor_tag -> Constructor t
+  | t when t == O.int_tag -> Int
+  | t -> raise (Invalid_argument (__MODULE__ ^ ".tag_view: " ^ string_of_int t))
 
 let fields v =
   Array.init (O.size v) (O.field v)
@@ -51,10 +53,9 @@ type con_id = bool * int
 *)
 let con_id t =
   (* copy the memory block O.repr(t), with components set to 0 *)
-  let open O in
-  let ot = repr t in
-  let b = is_int ot in
-  (b, (if b then obj else tag) ot)
+  let ot = O.repr t in
+  let b = O.is_int ot in
+  (b, (if b then O.obj else O.tag) ot)
 
 let is_con v =
   O.is_int v
@@ -82,11 +83,10 @@ v}
 *)
 
 let fields_all2 p x y =
-  let open O in
   is_tuple x && is_tuple y
-  && size x == size y
-  && Generic_util_iter.for_all_in 0 (size x - 1)
-                     (fun i -> p (field x i) (field y i))
+  && O.size x == O.size y
+  && Iter.for_all_in 0 (O.size x - 1)
+                     (fun i -> p (O.field x i) (O.field y i))
 
 (** Equality on objects. (Same as Pervasive.=)
    {e todo}: use memoisation to deal with cyclic datastructures
@@ -115,21 +115,19 @@ let listify x =
 
 (* PARTIAL. polymorpic variants *)
 let poly_hash x =
-  let open O in
-  let v = repr x in
-  if is_int v then obj v
-  else if size v > 0 then obj (field v 0)
+  let v = O.repr x in
+  if O.is_int v then O.obj v
+  else if O.size v > 0 then O.obj (O.field v 0)
   else raise (Invalid_argument (__MODULE__ ^ ".poly_hash: not a polymorphic variant"))
 
 (* TOTAL. A constructor of an extensible variant type is
   an object with two fields: a string (the name) and an int *)
 let is_ext_con x =
-  let open O in
-  is_block x
-  && tag x == object_tag
-  && size x == 2
-  && tag (field x 0) == string_tag
-  && is_int (field x 1)
+  O.is_block x
+  && O.tag x == O.object_tag
+  && O.size x == 2
+  && O.tag (O.field x 0) == O.string_tag
+  && O.is_int (O.field x 1)
 
 (* PARTIAL. raise Invalid_argument
    Extract the constructor of an extensible variant,

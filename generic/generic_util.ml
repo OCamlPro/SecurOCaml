@@ -31,3 +31,12 @@ module Fun = Generic_util_fun
 
 (** Empty and Sum datatypes. *)
 module Sum = Generic_util_sum
+
+(** Monads. *)
+module Monad = Generic_util_monad
+
+(** Operations on option types. *)
+module Option = Generic_util_option
+
+(** Operations on/with exceptions. *)
+module Exn = Generic_util_exn

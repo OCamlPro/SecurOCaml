@@ -106,8 +106,11 @@ let conpat : 'a ty -> 'a ty =
   let rv = repr value in
   tag rv |>
     function
-    | t when t == object_tag -> value
+    | t when t == object_tag
+      (* [value] is a constructor of arity 0 *)
+      -> value
     | t when t == 0
+      (* [value] has a constructor [field rv 0] of arity [size rv - 1] *)
       -> let any = repr Any
          and n = size rv in
          let con = new_block t n in

@@ -2,7 +2,7 @@
  *)
 
 open Generic_core
-open Generic_util_app
+open Generic_util
 
 type 'b ty_fun =
   { f : 'a . 'a Ty.ty -> 'a -> 'b }
@@ -14,7 +14,7 @@ type 'b closure =
 
 let create name =
   let closure = Extensible.create name
-  in { f = (fun t x -> get_exponential (closure.f t) x)
+  in { f = (fun t x -> App.get_exponential (closure.f t) x)
      ; ext = (fun t f -> closure.ext t
-               { f = fun t -> Exponential (f.f t)})
+               { f = fun t -> App.Exponential (f.f t)})
      }

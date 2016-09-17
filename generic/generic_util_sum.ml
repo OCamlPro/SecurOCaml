@@ -1,4 +1,5 @@
-open Generic_core_ty
+open Generic_core
+open Ty.T
 
 type empty (* empty type : no value *)
 type ('a,'b) choice = L of 'a | R of 'b

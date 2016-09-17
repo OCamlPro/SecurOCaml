@@ -4,7 +4,7 @@ module T = struct
   type ('a,'b) app = ..
 end
 
-include T
+open T
 type ('a,'b) t = ('a,'b) app
 
 (* Example: the constant functor.

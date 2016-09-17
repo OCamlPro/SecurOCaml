@@ -48,6 +48,7 @@ end
 (** Synonym for convenience. *)
 type 'a t = 'a T.ty
 type 'a ty = 'a T.ty = ..
+
 (** Re-export of T.ty constructors *)
 type _ ty +=
    | Any : 'a ty

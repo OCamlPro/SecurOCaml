@@ -28,8 +28,8 @@ let double_array_tag = Obj.double_array_tag
 
 let (>>.) = Fun.(>>.)
 let (-<) = Fun.(-<)
-let guard = Misc.guard
-let one_of = Misc.one_of
+let guard = Exn.guard
+let one_of = Exn.one_of
 let desc = Desc_fun.view
 
 let print_obj = Obj_inspect.print_obj
@@ -38,35 +38,12 @@ let print_obj = Obj_inspect.print_obj
 exception Serialize_exception of string
 exception Anti_unify_exception (* TODO better name *)
 
-(* type ('a,'b) repr_desc = *)
-(*   { repr_ty : 'b ty *)
-(*   ; to_repr : 'a -> 'b *)
-(*   ; from_repr : 'b -> 'a option *)
-(*   ; default : 'a *)
-(*   ; update : 'a -> 'b -> unit *)
-(*   } *)
-(* type 'a repr = Repr : ('a,'b) repr_desc -> 'a repr *)
-(* type tag = Tag *)
-(* type (_,_) app += App : 'a repr -> ('a, tag) app *)
-
-(* let unapp (App x) = x *)
-
-(* type repr_fun = *)
-(*   { f : 'a . 'a ty -> 'a repr } *)
-
-(* let repr_closure = Extensible.create "repr" (\* private *\) *)
-(* let repr t = unapp (repr_closure.f t) *)
-(* let repr_ext t f = repr_closure.ext t { f = fun t -> App (f.f t) } *)
-
-(**************************************************)
-
 (* direction of the conversion, TO bytes or FROM bytes *)
 type direction = To | From
 let direction = ref To (* global ref *)
 let is_from = function
   | From -> true
   | _ -> false
-
 
 (* hashtable with physical equality on untyped objects *)
 module HashedObj =
@@ -380,7 +357,7 @@ and check_single : type v . v Desc.Con.t -> obj -> unit
   = fun (Desc.Con.Con c) v ->
   let open Product.T in
   match c.args with
-  | Pcons (t, Pnil) -> check_field t v 1
+  | Cons (t, Nil) -> check_field t v 1
   | _ -> raise (Serialize_exception "Polymorphic variant, invalid singleton constructor")
 
 and check_extensible : type t . t Desc.Ext.t -> obj -> unit
@@ -407,8 +384,7 @@ and check_extensible : type t . t Desc.Ext.t -> obj -> unit
  *)
 and check_lazy : type t . t ty -> obj -> obj
   = fun t v ->
-    let open Generic_util_obj in
-    match tag_view (tag v) with
+    match Objx.tag_view (tag v) with
     | Double (* illegal value (case 3) *)
       -> raise (Serialize_exception "Lazy type, invalid value (double)")
     | Lazy  (* case 1. We can't check a CLOSURE *)

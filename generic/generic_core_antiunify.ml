@@ -43,7 +43,7 @@ and anti_unify_recurse : type a b . a ty -> b ty -> a ty
          -> c.embed (anti_unify_prod (c.args, xs, Ty_desc.subterms y))
 and anti_unify_prod : type a . a Product.t * a * Ty.dyn list -> a
   = let open Product.T in function
-  | Pnil , (), [] -> ()
-  | Pcons (Ty.Ty _, ts), (x,xs), (Ty.Dyn (Ty.Ty _, y) :: ys)
+  | Nil , (), [] -> ()
+  | Cons (Ty.Ty _, ts), (x,xs), (Ty.Dyn (Ty.Ty _, y) :: ys)
     -> (anti_unify x y, anti_unify_prod (ts, xs, ys))
   | _ -> assert false

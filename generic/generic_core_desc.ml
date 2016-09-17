@@ -3,7 +3,7 @@ open Generic_util
 open Ty.T
 
 module Con = struct
-  let local_invalid_arg str = invalid_arg ("Generic_core_desc.Con." ^ str)
+  let local_invalid_arg str = invalid_arg (__MODULE__ ^ str)
 
   (* ** Caveat
 
@@ -18,7 +18,7 @@ module Con = struct
   type ('a, 'v) desc =
     { name  : string
     ; args  : 'a Product.t (* we should rename desc.args to desc.args_ty *)
-    ; embed : 'a -> 'v (* this function should never inspect 'a *)
+    ; embed : 'a -> 'v (* this function should NEVER inspect 'a or the library would cause a segfault. *)
     ; proj  : 'v -> 'a option
     }
 
@@ -58,8 +58,8 @@ module Con = struct
    *)
   let rec set_fields : type a . Obj.t -> int -> a Product.t * a -> unit =
     fun v i -> let open Product.T in function
-            | Pnil, () -> ()
-            | Pcons (t,ts), (x, xs) ->
+            | Nil, () -> ()
+            | Cons (t,ts), (x, xs) ->
                begin
                  Obj.set_field v i (Obj.repr x);
                  set_fields v (i+1) (ts, xs)
@@ -106,7 +106,7 @@ module Con = struct
 end (* Con *)
 
 module Variant = struct
-  let local_invalid_arg str = invalid_arg ("Generic_core_desc.Variant." ^ str)
+  let local_invalid_arg str = invalid_arg (__MODULE__ ^ str)
 
   (* * Variants
 
@@ -198,7 +198,7 @@ end (* Variant *)
 module Ext = struct
   module H = Hashtbl
 
-  let local_invalid_arg str = invalid_arg ("Generic_core_desc.Ext." ^ str)
+  let local_invalid_arg str = invalid_arg (__MODULE__ ^ str)
 
   (* * Variants extensibles
 
@@ -254,7 +254,7 @@ module Ext = struct
    * Careful: c.con ext.ty may throw an exception, but we catch it.
    *)
   let fold ext cons nil =
-    H.fold (fun _ (k,c) a -> Misc.unopt_try (Fun.flip cons a) a (lazy (c.con ext.ty)))
+    H.fold (fun _ (k,c) a -> Option.unopt_try a (Fun.flip cons a) (lazy (c.con ext.ty)))
            ext.cons nil
 
   (* STATEFUL *)
@@ -296,7 +296,7 @@ module Ext = struct
 end (* Ext *)
 
 module Poly = struct
-  let local_invalid_arg str = invalid_arg ("Generic_core_desc.Poly." ^ str)
+  let local_invalid_arg str = invalid_arg (__MODULE__ ^ str)
 
   (* * Polymorphic Variants
 
@@ -346,7 +346,7 @@ module Poly = struct
          begin
            Obj.set_field v 0 (Obj.repr h);
            begin match ts , xs with
-           | Pcons (_, Pnil), (x,()) -> Obj.set_field v 1 (Obj.repr x)
+           | Cons (_, Nil), (x,()) -> Obj.set_field v 1 (Obj.repr x)
            | _ -> let w = Obj.new_block 0 n in
                   Con.set_fields w 0 (ts,xs);
            end;
@@ -385,39 +385,46 @@ end
 module Fields = struct
   module T = struct
     type ('p, 'r) fields =
-        Fnil : (unit, 'r) fields
-      | Fcons : ('t, 'r) Field.t * ('ts, 'r) fields -> ('t * 'ts, 'r) fields
+      | Nil : (unit, 'r) fields
+      | Cons : ('t, 'r) Field.t * ('ts, 'r) fields -> ('t * 'ts, 'r) fields
   end
 
-  type ('p, 'r) t =  ('p,'r) T.fields
+  type ('p, 'r) t =  ('p,'r) T.fields =
+    | Nil : (unit, 'r) t
+    | Cons : ('t, 'r) Field.t * ('ts, 'r) t -> ('t * 'ts, 'r) t
 
   let rec product : type p . (p,'r) t -> p Product.t
     = function
-      | T.Fnil -> Pnil
-      | T.Fcons (f,fs) -> Pcons (f.ty, product fs)
+      | T.Nil -> Nil
+      | T.Cons (f,fs) -> Cons (f.ty, product fs)
 
   let rec types_of_mutable_fields : type p . (p, 'r) t -> Ty.ty' list
     = function
-      | T.Fnil -> []
-      | T.Fcons (f, fs) ->
+      | T.Nil -> []
+      | T.Cons (f, fs) ->
         if Field.is_mutable f then
           E f.ty :: types_of_mutable_fields fs
         else types_of_mutable_fields fs
 end
 
 module Record = struct
-  let local_invalid_arg str = invalid_arg ("Generic_core_desc.Record." ^ str)
+  let local_invalid_arg str = invalid_arg (__MODULE__ ^ str)
   module T = struct
     type ('p,'r) record =
-      { name   : string
+      { name : string
       ; fields : ('p, 'r) Fields.t
-      ; iso    : ('p, 'r) Fun.iso
+      ; iso : ('p, 'r) Fun.iso
       }
   end
-  type ('p,'r) t = ('p,'r) T.record
+  type ('p,'r) t = ('p,'r) T.record =
+    { name : string
+    ; fields : ('p, 'r) Fields.t
+    ; iso : ('p, 'r) Fun.iso
+    }
 
-  let product r = Fields.product r.T.fields
-  let types_of_mutable_fields r = Fields.types_of_mutable_fields r.T.fields
+  let product r = Fields.product r.fields
+  let types_of_mutable_fields r = Fields.types_of_mutable_fields r.fields
+  let tuple r x = (product r, r.iso.bck x)
 end (* Record *)
 
 module Method = struct
@@ -459,23 +466,14 @@ module Custom = struct
       ; identifier : string
       }
   end
-  type 'a t = 'a T.custom
+  type 'a t = 'a T.custom =
+    { name : string
+    ; identifier : string
+    }
 end (* Custom *)
 
-type 'a t =
-  | Array      : 'e ty * (module Array.intf with type t = 'a and type elt = 'e) -> 'a t
-  | Product    : 'ts Product.t * ('ts , 'p) Fun.iso -> 'p t
-  | Record     : ('p,'r) Record.t -> 'r t
-  | Variant    : 'v Variant.t -> 'v t
-  | Extensible : 'a Ext.t -> 'a t
-  | Custom     : 'a Custom.t -> 'a t
-  | Class      : 'c Class.t -> 'c t
-  | Synonym    : 'b ty * ('a,'b) Equal.t -> 'a t
-  | Abstract   : 'a t
-  | NoDesc     : 'a t
-
 module T = struct
-  type 'a desc = 'a t =
+  type 'a desc =
     | Array      : 'e ty * (module Array.intf with type t = 'a and type elt = 'e) -> 'a desc
     | Product    : 'ts Product.t * ('ts , 'p) Fun.iso -> 'p desc
     | Record     : ('p,'r) Record.t -> 'r desc
@@ -486,4 +484,7 @@ module T = struct
     | Synonym    : 'b ty * ('a,'b) Equal.t -> 'a desc
     | Abstract   : 'a desc
     | NoDesc     : 'a desc
- end (* T *)
+end (* T *)
+
+include T
+type 'a t = 'a T.desc

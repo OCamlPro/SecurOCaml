@@ -5,7 +5,7 @@ open App.T
 open Ty.T
 open Product.Build
 
-let local_invalid_arg s = invalid_arg ("Generic_core_desc_fun." ^ s)
+let local_invalid_arg s = invalid_arg (__MODULE__ ^ s)
 
 let cons = Desc.Variant.cons
 let c0 = Desc.Con.c0
@@ -90,9 +90,6 @@ let bytes_desc =
     end))
 
 (**************************************************)
-
-let fail_desc (_ : 'a ty) = (local_invalid_arg "desc" : 'a Desc.t)
-
 let () =
   begin
     ext Any { f = fun _ -> NoDesc }; (* in particular, [Fun(a,b)] *)
@@ -102,79 +99,79 @@ let () =
            | Ty.Pair (a,b) -> Product (p2 a b
                                    , { fwd = (fun (x,(y,())) -> (x,y))
                                      ; bck = (fun (x,y) -> (x,(y,())))})
-           | _ -> fail_desc ty : a Desc.t)
+           | _ -> assert false : a Desc.t)
       };
     ext String
       { f = fun (type a) (ty : a ty) -> match ty with
            | Ty.String -> (string_desc : a Desc.t)
-           | _ -> fail_desc ty
+           | _ -> assert false
       };
     ext Bytes
       { f = fun (type a) (ty : a ty) -> match ty with
            | Ty.Bytes -> (bytes_desc : a Desc.t)
-           | _ -> fail_desc ty
+           | _ -> assert false
       };
     ext Ty.array
       { f = fun (type a) (ty : a ty) -> match ty with
            | Ty.Array t -> (array_desc t : a Desc.t)
-           | _ -> fail_desc ty
+           | _ -> assert false
       };
     ext Bool
       { f = fun (type a) (ty : a ty) -> (match ty with
            | Ty.Bool -> Variant {name = "bool"; cons = cons_bool}
-           | _ -> fail_desc ty : a Desc.t)
+           | _ -> assert false : a Desc.t)
       };
 
     ext Ty.option
       { f = fun (type a) (ty : a ty) -> (match ty with
            | Ty.Option a -> Variant {name = "option"; cons = cons_option a}
-           | _ -> fail_desc ty : a Desc.t)
+           | _ -> assert false : a Desc.t)
       };
 
     ext Ty.list
       { f = fun (type a) (ty : a ty) -> (match ty with
            | Ty.List a -> Variant {name = "list"; cons = cons_list a}
-           | _ -> fail_desc ty : a Desc.t)
+           | _ -> assert false : a Desc.t)
       };
 
     ext Int32
       { f = fun (type a) (ty : a ty) -> match ty with
            | Ty.Int32 -> Desc.Custom { name = "int32"
-                             ; identifier = Generic_util_obj.custom_identifier (Int32.of_int 0)
+                             ; identifier = Objx.custom_identifier (Int32.of_int 0)
                              }
-           | _ -> fail_desc ty
+           | _ -> assert false
       };
     ext Int64
       { f = fun (type a) (ty : a ty) -> match ty with
            | Ty.Int64 -> Desc.Custom { name = "int64"
-                             ; identifier = Generic_util_obj.custom_identifier (Int64.of_int 0)
+                             ; identifier = Objx.custom_identifier (Int64.of_int 0)
                              }
-           | _ -> fail_desc ty
+           | _ -> assert false
       };
     ext Nativeint
       { f = fun (type a) (ty : a ty) -> match ty with
            | Ty.Nativeint -> Desc.Custom { name = "nativeint"
-                                 ; identifier = Generic_util_obj.custom_identifier (Nativeint.of_int 0)
+                                 ; identifier = Objx.custom_identifier (Nativeint.of_int 0)
                                  }
-           | _ -> fail_desc ty
+           | _ -> assert false
       };
 
     ext (Ref Any)
       { f = fun (type a) (ty : a ty) -> (match ty with
            | Ty.Ref t ->
              Record { name = "ref"
-                     ; fields = Fcons ( { name = "contents"
+                     ; fields = Cons ( { name = "contents"
                                         ; ty = t
                                         (*; bound = 0 *)
                                         ; set = Some (fun r x -> r := x)
                                         }
-                                      , Fnil
+                                      , Nil
                                       )
                      ; iso = { fwd = (fun (x,()) -> ref x)
                              ; bck = (fun r -> (!r, ()))
                              }
                      }
-           | _ -> fail_desc ty : a Desc.t)
+           | _ -> assert false : a Desc.t)
       };
   end
 

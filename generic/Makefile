@@ -27,7 +27,7 @@ OCAMLDOC=ocamldoc.opt $(INCLUDES) -w -40
 # linking order of the corresponding cmos.  All the
 # namespaces are linked before the ml files.
 
-NS=generic_core.ml generic_util.ml generic_fun.ml
+NS=generic_util.ml generic_core.ml generic_view.ml generic_fun.ml
 NSI=
 
 ML=\
@@ -37,9 +37,12 @@ generic_util_hash.ml\
 generic_util_iter.ml\
 generic_util_list.ml\
 generic_util_misc.ml\
+generic_util_exn.ml\
 generic_util_obj.ml\
 generic_util_obj_inspect.ml\
 generic_util_sum.ml\
+generic_util_option.ml\
+generic_util_monad.ml\
 generic_core_ty.ml\
 generic_core_equal.ml\
 generic_core_product.ml\
@@ -51,6 +54,7 @@ generic_core_consumer.ml\
 generic_core_desc_fun.ml\
 generic_core_antiunify.ml\
 generic_core_repr.ml\
+generic_view_spine.ml\
 generic_fun_marshal.ml\
 
 MLI=\
@@ -140,7 +144,7 @@ endef
 
 # Generate the mli to stdout
 # (we don't want to erase the hand written one)
-%.mli.auto: %.ml
+%.mli.auto: %.ml %.cmo
 	$(OCAMLC) -i $<
 
 # This is a static pattern see info: Make > Static Usage

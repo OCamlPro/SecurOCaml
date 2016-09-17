@@ -1,5 +1,8 @@
 (** Useful functions on lists. *)
 
+(** [cons] is useful when we want partial application of the list constructor. *)
+let cons x xs = x :: xs
+
 (** [from_to a b = [a; a+1; ... ; b]] *)
 let rec from_to a b =
   if a > b then []
@@ -16,7 +19,28 @@ let with_indices xs =
     | x :: xs -> (n,x) :: go (n+1) xs
   in go 0 xs
 
-(** Raised by {!sl_insert} when trying to insert an element that is already in the list. *)
+(** [set i x xs] computes a new list where the [i]-th element
+    of [xs] is [x], the rest of the list is unchanged. Counting
+    from [0].
+
+    If [i] is greater than the length of the list or if [i]
+    is negative, then the original list is returned.
+*)
+let set n x xs =
+  let rec go n = function
+    | [] -> []
+    | y :: ys ->
+      if n = 0
+      then x :: ys
+      else y :: go (n-1) ys
+  in
+  if n < 0 then xs else go n xs
+
+
+(** {[concatmap f x = concat -< map f]} *)
+let concatmap f xs = List.concat (List.map f xs)
+
+  (** Raised by {!sl_insert} when trying to insert an element that is already in the list. *)
 exception Insert_duplicate
 
 (** [sl_insert leq x xs] inserts the new element [x] in the sorted list [xs] using the pre-order [<=].

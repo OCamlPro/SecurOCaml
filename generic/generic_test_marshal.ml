@@ -17,11 +17,11 @@ let print_obj = Obj_inspect.print_obj
 let print_address x = print_string (address x); print_newline ()
 *)
 
-let get_some = Misc.get_some
-let guard = Misc.guard
-let unopt = Misc.unopt
-let some_if = Misc.some_if
-let opt_try = Misc.opt_try
+let guard = Exn.guard
+let get_some = Option.get_some
+let unopt = Option.unopt
+let some_if = Option.some_if
+let opt_try = Option.opt_try
 let (-<) = Fun.(-<)
 
 let debug = true
@@ -345,7 +345,7 @@ let () =
                           ; to_repr = (fun b -> b#get_a)
                           ; from_repr = (fun a -> Some (new b a))
                           ; default = new b None
-                          ; update = (fun b -> unopt (b#set_a) ())}
+                          ; update = (fun b -> unopt () (b#set_a))}
                    : a Repr.t)
            | _ -> assert false };
     test_cast "a_b_cycle : a" a_b_cycle A;
@@ -430,12 +430,12 @@ let () =
           ( Record
               { name = "pmf"
               ; fields =
-                  Fcons ( { name = "pmf"
+                  Cons ( { name = "pmf"
                           ; ty = List (Var 0)
                           ; bound = 1
                           ; set = None
                           }
-                        , Fnil)
+                        , Nil)
               ; iso = { fwd = (fun (pmf,()) -> {pmf})
                       ; bck = (fun {pmf} -> (pmf,()))
                       }
