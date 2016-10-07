@@ -28,6 +28,7 @@ let double_array_tag = Obj.double_array_tag
 
 let (>>.) = Fun.(>>.)
 let (-<) = Fun.(-<)
+
 let guard = Exn.guard
 let one_of = Exn.one_of
 let desc = Desc_fun.view
@@ -37,6 +38,9 @@ let print_obj = Obj_inspect.print_obj
 (**************************************************)
 exception Serialize_exception of string
 exception Anti_unify_exception (* TODO better name *)
+
+let exn s f = try Lazy.force f
+  with Exn.Failed -> raise (Serialize_exception s)
 
 (* direction of the conversion, TO bytes or FROM bytes *)
 type direction = To | From
@@ -94,8 +98,10 @@ let with_field v i f =
 (* Updating procedure for abstract values *)
 let abstract_update = (Stack.create () : (unit -> unit) Stack.t)
 
+let check_size s v =
+  exn "Incorrect block size" (lazy (guard (is_block v && size v = s)))
 let check_tag t v =
-  guard (is_block v && tag v == t)
+  exn "Incorrect tag" (lazy (guard (is_block v && tag v == t)))
 
 let is_custom s v =
   tag v == custom_tag
@@ -125,7 +131,7 @@ let obj_to_repr r x = to_obj (r.Repr.to_repr (from_obj x))
 let obj_from_repr r x =
   match r.Repr.from_repr (from_obj x) with
   | Some y -> to_obj y
-  | None -> raise (Serialize_exception "Invalid abstract representation")
+  | None -> raise (Serialize_exception "Invalid abstract representation.")
 
 let obj_update r x y = r.Repr.update (from_obj x) (from_obj y)
 let obj_default r = to_obj r.Repr.default
@@ -152,7 +158,7 @@ let rec convert dir t v =
   Stack.clear abstract_update;
   Stack.clear path;
   direction := dir;
-  let result = check t v in
+  let result = exn "Incompatible value" (lazy (check t v)) in
   if is_from (!direction) then restore_abstract_edges ();
   H.reset visit_ty_table; (* reclaim space *)
   H.reset visit_val_table; (* reclaim space *)
@@ -180,7 +186,7 @@ and check : type a . a ty -> obj -> obj
 
       try let Ty.E t' = visit_ty v in
           let u = try Antiunify.anti_unify t t'
-                  with _ -> raise (Serialize_exception "Antiunification")
+                  with _ -> raise (Serialize_exception "Antiunification.")
           in
           one_of [ lazy begin
                      guard (Ty.eq t' u);
@@ -210,7 +216,7 @@ and do_check : type a . a ty -> obj -> obj
       | Abstract ->
         (match try Repr.repr t
            with Extensible.Type_pattern_match_failure _ ->
-             raise (Serialize_exception "Abstract or Class without representation")
+             raise (Serialize_exception "Abstract or Class without representation.")
            with
            | Repr.Repr r ->
              match !direction with
@@ -235,10 +241,10 @@ and do_check : type a . a ty -> obj -> obj
 and check_concrete : type a . a ty -> obj -> unit
   = let open Ty.T in function
   (*| Var n       -> raise (Serialize_exception "Inhabited polymorphic type (Var)")  I removed variables*)
-  | Ty.Any         -> raise (Serialize_exception "Inhabited polymorphic type")
+  | Ty.Any         -> raise (Serialize_exception "Inhabited polymorphic type.")
   | Int         -> guard -< is_int
   | Char        -> guard -< is_char
-  | Float       -> check_tag double_tag
+  | Float       -> check_tag double_tag >>. check_size 1
   | Bytes       -> check_tag string_tag
   | String      -> check_tag string_tag
   | Array Float -> check_tag double_array_tag
@@ -247,8 +253,7 @@ and check_concrete : type a . a ty -> obj -> unit
   | Lazy _ -> assert false (* already checked by do_check *)
   | t -> let open Desc.T in
     match desc t with
-    | Product (p, iso) ->
-      (check_tag 0) >>. (check_product p)
+    | Product (p, iso) -> check_tag 0 >>. check_product p
     | Record r  -> check_record r
     | Variant v -> check_variant v.cons
     | Extensible x -> check_extensible x
@@ -256,8 +261,8 @@ and check_concrete : type a . a ty -> obj -> unit
     | Synonym (t, Equal.Refl) -> assert false (* check t -- never executed since we resolved synonyms earlier *)
     | Class _
     | Abstract -> assert false (* already checked by do_check *)
-    | NoDesc -> raise (Serialize_exception "Abstract or Class without representation")
-    | _ -> raise (Serialize_exception "Unsupported type description")
+    | NoDesc -> raise (Serialize_exception "Abstract or Class without representation.")
+    | _ -> raise (Serialize_exception "Unsupported type description.")
 
 (* This function should always be called to check a field
    it takes care of the stack invariant
@@ -287,7 +292,8 @@ and check_fields_from : type p . int -> p Product.t -> obj -> unit
         (fun (Ty.E t) i -> check_field t v i)
         (Product.list_of_prod p)
         (Listx.from_to a (size v - 1))
-  with Invalid_argument _ -> raise (Serialize_exception "Blocks of differing length")
+  with Invalid_argument _ ->
+    raise (Serialize_exception "Block of incorrect length.")
 
 (* "check_record": Since we cannot be sure that the record
 description lists the fields in the correct order, we must
@@ -347,7 +353,7 @@ and check_poly_variant : type v . v Desc.Poly.t -> obj -> unit
                               )
                  end
              ]
-  with Not_found -> raise (Serialize_exception "Polymorphic variant, constructor not found")
+  with Not_found -> raise (Serialize_exception "Polymorphic variant, constructor not found.")
 
 and check_args : type v . v Desc.Con.t -> obj -> unit
   = fun (Desc.Con.Con c) -> check_product c.args
@@ -358,7 +364,7 @@ and check_single : type v . v Desc.Con.t -> obj -> unit
   let open Product.T in
   match c.args with
   | Cons (t, Nil) -> check_field t v 1
-  | _ -> raise (Serialize_exception "Polymorphic variant, invalid singleton constructor")
+  | _ -> raise (Serialize_exception "Polymorphic variant, invalid singleton constructor.")
 
 and check_extensible : type t . t Desc.Ext.t -> obj -> unit
   = fun x v ->
@@ -367,7 +373,7 @@ and check_extensible : type t . t Desc.Ext.t -> obj -> unit
       let Desc.Con.Con c = Desc.Ext.con x w
       in one_of [ lazy (guard (tag v == object_tag)) (* constant constructor *)
                 ; lazy (check_fields_from 1 c.args (to_obj w))]
-  with Not_found -> raise (Serialize_exception "Extensible type, constructor not found")
+  with Not_found -> raise (Serialize_exception "Extensible type, constructor not found.")
 
 (* (comment from stdlib/lazy.ml)
  * A value of type ['a Lazy.t] can be one of three things:
@@ -386,9 +392,9 @@ and check_lazy : type t . t ty -> obj -> obj
   = fun t v ->
     match Objx.tag_view (tag v) with
     | Double (* illegal value (case 3) *)
-      -> raise (Serialize_exception "Lazy type, invalid value (double)")
+      -> raise (Serialize_exception "Lazy type, invalid value (double).")
     | Lazy  (* case 1. We can't check a CLOSURE *)
-      -> raise (Serialize_exception "Lazy type, closures are not supported")
+      -> raise (Serialize_exception "Lazy type, closures are not supported.")
     | Forward -> (* case 2 *)
         guard (size v == 1);
         check_field t v 0;
@@ -399,20 +405,45 @@ and check_lazy : type t . t ty -> obj -> obj
  * Main functions
  *)
 
-(* Raise: ... *)
+(* Raise: Serialize_exception (TODO: document other exceptions that may be raised) *)
 let to_repr : 'a ty -> 'a -> obj
   = fun t x ->
     convert To t (to_obj x)
 
-(* Raise: ... *)
+(* Raise: Serialize_exception (TODO: document other exceptions that may be raised) *)
 let from_repr : 'a ty -> obj -> 'a
   = fun t v ->
     from_obj (convert From t v)
 
 let to_channel : 'a ty -> out_channel -> 'a -> Marshal.extern_flags list -> unit
   = fun t oc x ->
-    Marshal.to_channel oc (to_repr t x)
+    Marshal.to_channel oc (t, to_repr t x)
+
+let to_string : 'a ty -> 'a -> Marshal.extern_flags list -> string
+  = fun t x ->
+    Marshal.to_string (t, to_repr t x)
+
+let to_bytes : 'a ty -> 'a -> Marshal.extern_flags list -> bytes
+  = fun t x ->
+    Marshal.to_bytes (t, to_repr t x)
+
+let safe_cast : 'a ty -> obj -> 'a
+  = fun t v ->
+    if is_block v && size v == 2 then
+      let ty = Desc.Ext.fix (Ty_desc.ext t) (from_obj (field v 0))
+      and rep = field v 1
+      in if ty = t then from_repr t rep
+      else raise (Serialize_exception "The serialized value has a different type than was expected.")
+    else raise (Serialize_exception ("Incorrect serialized value, it was not serialized using module " ^ __MODULE__))
 
 let from_channel : 'a ty -> in_channel -> 'a
   = fun t ic ->
-    from_repr t (Marshal.from_channel ic)
+    safe_cast t (Marshal.from_channel ic)
+
+let from_string : 'a ty -> string -> int -> 'a
+  = fun t s i ->
+    safe_cast t (Marshal.from_string s i)
+
+let from_bytes : 'a ty -> bytes -> int -> 'a
+  = fun t s i ->
+    safe_cast t (Marshal.from_bytes s i)

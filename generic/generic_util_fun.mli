@@ -42,16 +42,19 @@ val opres : ('a -> 'b -> 'c) -> ('d -> 'a) -> ('d -> 'b) -> 'd -> 'c
 (** [opon (^) f x y = f x ^ f y] *)
 val opon : ('a -> 'a -> 'b) -> ('c -> 'a) -> 'c -> 'c -> 'b
 
-(** {3 Composition Operators} *)
+(** {3 Composition and Point-Free Operators} *)
 
 (** [(g -< f) x = g (f x)] *)
-val ( -< ) : ('a -> 'b) -> ('c -> 'a) -> 'c -> 'b
+val ( -< ) : ('a -> 'b) -> ('c -> 'a) -> ('c -> 'b)
 
 (** [(f >- g) x = g (f x)] *)
-val ( >- ) : ('a -> 'b) -> ('b -> 'c) -> 'a -> 'c
+val ( >- ) : ('a -> 'b) -> ('b -> 'c) -> ('a -> 'c)
 
 (** [(f >>. g) x = f x ; g x] *)
-val ( >>. ) : ('a -> 'b) -> ('a -> 'c) -> 'a -> 'c
+val ( >>. ) : ('a -> 'b) -> ('a -> 'c) -> ('a -> 'c)
+
+(** [(f &&. g) x = f x && g x] *)
+val ( &&. ) : ('a -> bool) -> ('a -> bool) -> ('a -> bool)
 
 (** {2 Isomorphisms}
 *)

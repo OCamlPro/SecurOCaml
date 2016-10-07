@@ -75,6 +75,24 @@ let test_cast_fail m x t =
 (*     | None ->  print_endline       ("*** Failure (To)   " ^ msg) *)
 (*   end *)
 
+let test_marshal eq msg x t =
+  begin
+    print_endline ("test_marshal [" ^ msg ^ "]");
+    let y = M.from_string t (M.to_string t x []) 0 in
+    if eq then
+      begin if x = y then
+          print_endline ("Equal")
+        else begin
+          print_endline ("Error [x =");
+          print_obj x;
+          print_endline ("], [y =");
+          print_obj y;
+          print_endline ("]");
+        end
+      end
+    else print_endline ("Done ["^msg^"]");
+  end
+
 let _ =
   begin
     test_cast "\"hello\" : String" "hello" String;
@@ -115,6 +133,9 @@ type _ ty += U : u ty | V : v ty
 
 let () =
   begin
+    Desc_fun.ext_add_con (Ty U)
+      {con = fun (type a) (Ty U : a ty) -> (Desc.Con.c0 "U" U : a Desc.Con.t)};
+
     Desc_fun.ext U { f = fun (type a) (ty : a ty) -> match ty with
         | U -> (Abstract : a desc)
         | _ -> assert false };
@@ -144,6 +165,7 @@ let () =
     and v = {y = Some u_v_cycle; i = 111}
     in
     test_cast "u_v_cycle : u" u_v_cycle U;
+    test_marshal false "u_v_cycle : u" u_v_cycle U;
   end
 
 (*************************************************
@@ -324,6 +346,11 @@ let () = a_b_cycle # get_b # set_a a_b_cycle
 
 let () =
   begin
+    Desc_fun.ext_add_con (Ty A)
+      {con = fun (type a) (Ty A : a ty) -> (Desc.Con.c0 "A" A : a Desc.Con.t)};
+    Desc_fun.ext_add_con (Ty B)
+      {con = fun (type a) (Ty B : a ty) -> (Desc.Con.c0 "B" B : a Desc.Con.t)};
+
     Desc_fun.ext A { f = fun (type a) (ty : a ty) -> match ty with
         | A -> (Abstract : a desc)
         | _ -> assert false };
@@ -349,6 +376,7 @@ let () =
                    : a Repr.t)
            | _ -> assert false };
     test_cast "a_b_cycle : a" a_b_cycle A;
+    test_marshal false "a_b_cycle : a" a_b_cycle A;
   end
 
 (**************************************************)
@@ -360,6 +388,9 @@ type _ ty += C : c ty
 type _ ty += D : d ty
 let () =
   begin
+    Desc_fun.ext_add_con (Ty D)
+      {con = fun (type a) (Ty D : a ty) -> (Desc.Con.c0 "D" D : a Desc.Con.t)};
+
     Desc_fun.ext_add_con (Ty C)
     { con = fun (type a) (Ty C : a ty)
           -> (Desc.Con.make "C" p0
@@ -376,6 +407,7 @@ let () =
         | D -> (Synonym (C, Refl) : a desc)
         | _ -> assert false };
     test_cast "[3] : d" [3] D;
+    test_marshal true "[3] : d" [3] D;
   end
 
 (**************************************************)

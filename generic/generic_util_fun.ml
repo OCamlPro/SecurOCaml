@@ -20,10 +20,11 @@ let res6 f = res1 res1 res5 f
 let opres op f g = fun x -> op (f x) (g x)
 let opon op f x y = op (f x) (f y)
 
-(* Composition Operators *)
+(* Composition and point-free operators *)
 let (-<) f g x = f (g x)
 let (>-) f g x = g (f x)
 let (>>.) f g x = (f x ; g x)
+let (&&.) f g x = f x && g x
 
 (* forward and backward arrows, fwd (bck x) = bck (fwd x) = x *)
 type ('a,'b) iso = {fwd : 'a -> 'b; bck : 'b -> 'a}
