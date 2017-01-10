@@ -23,6 +23,10 @@ module Build = struct
   let p4 x = Fun.res3 (pc x) p3
   let p5 x = Fun.res4 (pc x) p4
   let p6 x = Fun.res5 (pc x) p5
+  let p7 x = Fun.res6 (pc x) p6
+  let p8 x = Fun.res7 (pc x) p7
+  let p9 x = Fun.res8 (pc x) p8
+  let p10 x = Fun.res9 (pc x) p9
 end
 
 include Build

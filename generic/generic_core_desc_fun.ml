@@ -2,8 +2,9 @@ open Generic_core
 open Generic_util
 
 open App.T
-open Ty.T
 open Product.Build
+
+type 'a ty = 'a Ty.t
 
 let local_invalid_arg s = invalid_arg (__MODULE__ ^ s)
 
@@ -20,7 +21,7 @@ let cons_option t = cons
   ]
 let cons_list t = cons
   [ c0 "[]" []
-  ; cn "::" (p2 t (Ty.T.List t))
+  ; cn "::" (p2 t (Ty.List t))
            (fun (x,(xs,())) -> x :: xs)
            (function x :: xs -> Some (x,(xs,())) | _ -> None)
   ]
@@ -39,7 +40,9 @@ let cons_bool = cons
 type tag = Tag
 type (_,_) app += App : 'a Desc.t -> ('a, tag) app
 
-let unapp (App x) = x
+let unapp = function
+  | App x -> x
+  | _ -> invalid_arg "Generic_core_desc_fun.unapp"
 
 type desc_fun =
   { f : 'a . 'a ty -> 'a Desc.t }
@@ -55,7 +58,7 @@ let ext t f = desc_closure.ext t { f = fun t -> App (f.f t) }
 
 let array_desc : type a . a ty -> a array Desc.t
   = fun t ->
-    let max_array_length = if Ty.eq t Ty.T.Float
+    let max_array_length = if Ty.eq t Ty.Float
       then Sys.max_array_length / 2
       else Sys.max_array_length
     in Desc.Array (t, (module struct
@@ -68,7 +71,7 @@ let array_desc : type a . a ty -> a array Desc.t
         let max_length = max_array_length
       end))
 let string_desc =
-  Desc.Array (Ty.T.Char, (module struct
+  Desc.Array (Ty.Char, (module struct
       type t = string
       type elt = char
       let get = String.get
@@ -79,7 +82,7 @@ let string_desc =
     end))
 
 let bytes_desc =
-  Desc.Array (Ty.T.Char, (module struct
+  Desc.Array (Ty.Char, (module struct
       type t = bytes
       type elt = char
       let get    = Bytes.get
@@ -92,7 +95,7 @@ let bytes_desc =
 (**************************************************)
 let () =
   begin
-    ext Any { f = fun _ -> NoDesc }; (* in particular, [Fun(a,b)] *)
+    ext Ty.Any { f = fun _ -> NoDesc }; (* in particular, [Fun(a,b)] *)
 
     ext Ty.pair
       { f = fun (type a) (ty : a ty) -> (match ty with
@@ -101,12 +104,68 @@ let () =
                                      ; bck = (fun (x,y) -> (x,(y,())))})
            | _ -> assert false : a Desc.t)
       };
-    ext String
+    ext (Ty.Triple (Ty.Any, Ty.Any, Ty.Any))
+      { f = fun (type a) (ty : a ty) -> (match ty with
+           | Ty.Triple (a,b,c) -> Product (p3 a b c
+                                   , { fwd = (fun (x,(y,(z,()))) -> (x,y,z))
+                                     ; bck = (fun (x,y,z) -> (x,(y,(z,()))))})
+           | _ -> assert false : a Desc.t)
+      };
+    ext (Ty.Quadruple (Ty.Any, Ty.Any, Ty.Any, Ty.Any))
+      { f = fun (type a) (ty : a ty) -> (match ty with
+           | Ty.Quadruple (t1,t2,t3,t4) -> Product (p4 t1 t2 t3 t4
+                                   , { fwd = (fun (x1,(x2,(x3,(x4,())))) -> (x1,x2,x3,x4))
+                                     ; bck = (fun (x1,x2,x3,x4) -> (x1,(x2,(x3,(x4,())))))})
+           | _ -> assert false : a Desc.t)
+      };
+    ext (Ty.Quintuple (Ty.Any, Ty.Any, Ty.Any, Ty.Any, Ty.Any))
+      { f = fun (type a) (ty : a ty) -> (match ty with
+           | Ty.Quintuple (t1,t2,t3,t4,t5) -> Product (p5 t1 t2 t3 t4 t5
+                                   , { fwd = (fun (x1,(x2,(x3,(x4,(x5,()))))) -> (x1,x2,x3,x4,x5))
+                                     ; bck = (fun (x1,x2,x3,x4,x5) -> (x1,(x2,(x3,(x4,(x5,()))))))})
+           | _ -> assert false : a Desc.t)
+      };
+    ext (Ty.Sextuple (Ty.Any, Ty.Any, Ty.Any, Ty.Any, Ty.Any, Ty.Any))
+      { f = fun (type a) (ty : a ty) -> (match ty with
+           | Ty.Sextuple (t1,t2,t3,t4,t5,t6) -> Product (p6 t1 t2 t3 t4 t5 t6
+                                   , { fwd = (fun (x1,(x2,(x3,(x4,(x5,(x6,())))))) -> (x1,x2,x3,x4,x5,x6))
+                                     ; bck = (fun (x1,x2,x3,x4,x5,x6) -> (x1,(x2,(x3,(x4,(x5,(x6,())))))))})
+           | _ -> assert false : a Desc.t)
+      };
+    ext (Ty.Septuple (Ty.Any, Ty.Any, Ty.Any, Ty.Any, Ty.Any, Ty.Any, Ty.Any))
+      { f = fun (type a) (ty : a ty) -> (match ty with
+           | Ty.Septuple (t1,t2,t3,t4,t5,t6,t7) -> Product (p7 t1 t2 t3 t4 t5 t6 t7
+                                   , { fwd = (fun (x1,(x2,(x3,(x4,(x5,(x6,(x7,()))))))) -> (x1,x2,x3,x4,x5,x6,x7))
+                                     ; bck = (fun (x1,x2,x3,x4,x5,x6,x7) -> (x1,(x2,(x3,(x4,(x5,(x6,(x7,()))))))))})
+           | _ -> assert false : a Desc.t)
+      };
+    ext (Ty.Octuple (Ty.Any, Ty.Any, Ty.Any, Ty.Any, Ty.Any, Ty.Any, Ty.Any, Ty.Any))
+      { f = fun (type a) (ty : a ty) -> (match ty with
+           | Ty.Octuple (t1,t2,t3,t4,t5,t6,t7,t8) -> Product (p8 t1 t2 t3 t4 t5 t6 t7 t8
+                                   , { fwd = (fun (x1,(x2,(x3,(x4,(x5,(x6,(x7,(x8,())))))))) -> (x1,x2,x3,x4,x5,x6,x7,x8))
+                                     ; bck = (fun (x1,x2,x3,x4,x5,x6,x7,x8) -> (x1,(x2,(x3,(x4,(x5,(x6,(x7,(x8,())))))))))})
+           | _ -> assert false : a Desc.t)
+      };
+    ext (Ty.Nonuple (Ty.Any, Ty.Any, Ty.Any, Ty.Any, Ty.Any, Ty.Any, Ty.Any, Ty.Any, Ty.Any))
+      { f = fun (type a) (ty : a ty) -> (match ty with
+           | Ty.Nonuple (t1,t2,t3,t4,t5,t6,t7,t8,t9) -> Product (p9 t1 t2 t3 t4 t5 t6 t7 t8 t9
+                                   , { fwd = (fun (x1,(x2,(x3,(x4,(x5,(x6,(x7,(x8,(x9,()))))))))) -> (x1,x2,x3,x4,x5,x6,x7,x8,x9))
+                                     ; bck = (fun (x1,x2,x3,x4,x5,x6,x7,x8,x9) -> (x1,(x2,(x3,(x4,(x5,(x6,(x7,(x8,(x9,()))))))))))})
+           | _ -> assert false : a Desc.t)
+      };
+    ext (Ty.Decuple (Ty.Any, Ty.Any, Ty.Any, Ty.Any, Ty.Any, Ty.Any, Ty.Any, Ty.Any, Ty.Any, Ty.Any))
+      { f = fun (type a) (ty : a ty) -> (match ty with
+           | Ty.Decuple (t1,t2,t3,t4,t5,t6,t7,t8,t9,t10) -> Product (p10 t1 t2 t3 t4 t5 t6 t7 t8 t9 t10
+                                   , { fwd = (fun (x1,(x2,(x3,(x4,(x5,(x6,(x7,(x8,(x9,(x10,())))))))))) -> (x1,x2,x3,x4,x5,x6,x7,x8,x9,x10))
+                                     ; bck = (fun (x1,x2,x3,x4,x5,x6,x7,x8,x9,x10) -> (x1,(x2,(x3,(x4,(x5,(x6,(x7,(x8,(x9,(x10,())))))))))))})
+           | _ -> assert false : a Desc.t)
+      };
+    ext Ty.String
       { f = fun (type a) (ty : a ty) -> match ty with
            | Ty.String -> (string_desc : a Desc.t)
            | _ -> assert false
       };
-    ext Bytes
+    ext Ty.Bytes
       { f = fun (type a) (ty : a ty) -> match ty with
            | Ty.Bytes -> (bytes_desc : a Desc.t)
            | _ -> assert false
@@ -116,61 +175,62 @@ let () =
            | Ty.Array t -> (array_desc t : a Desc.t)
            | _ -> assert false
       };
-    ext Bool
+    ext Ty.Bool
       { f = fun (type a) (ty : a ty) -> (match ty with
-           | Ty.Bool -> Variant {name = "bool"; cons = cons_bool}
+           | Ty.Bool -> Variant {name = "bool"; module_path = ["Core"]; cons = cons_bool}
            | _ -> assert false : a Desc.t)
       };
 
     ext Ty.option
       { f = fun (type a) (ty : a ty) -> (match ty with
-           | Ty.Option a -> Variant {name = "option"; cons = cons_option a}
+           | Ty.Option a -> Variant {name = "option"; module_path = ["Core"]; cons = cons_option a}
            | _ -> assert false : a Desc.t)
       };
 
     ext Ty.list
       { f = fun (type a) (ty : a ty) -> (match ty with
-           | Ty.List a -> Variant {name = "list"; cons = cons_list a}
+           | Ty.List a -> Variant {name = "list"; module_path = ["Core"]; cons = cons_list a}
            | _ -> assert false : a Desc.t)
       };
 
-    ext Int32
+    ext Ty.Int32
       { f = fun (type a) (ty : a ty) -> match ty with
-           | Ty.Int32 -> Desc.Custom { name = "int32"
+           | Ty.Int32 -> Desc.Custom { name = "int32"; module_path = ["Core"]
                              ; identifier = Objx.custom_identifier (Int32.of_int 0)
                              }
            | _ -> assert false
       };
-    ext Int64
+    ext Ty.Int64
       { f = fun (type a) (ty : a ty) -> match ty with
-           | Ty.Int64 -> Desc.Custom { name = "int64"
+           | Ty.Int64 -> Desc.Custom { name = "int64"; module_path = ["Core"]
                              ; identifier = Objx.custom_identifier (Int64.of_int 0)
                              }
            | _ -> assert false
       };
-    ext Nativeint
+    ext Ty.Nativeint
       { f = fun (type a) (ty : a ty) -> match ty with
-           | Ty.Nativeint -> Desc.Custom { name = "nativeint"
+           | Ty.Nativeint -> Desc.Custom { name = "nativeint"; module_path = ["Core"]
                                  ; identifier = Objx.custom_identifier (Nativeint.of_int 0)
                                  }
            | _ -> assert false
       };
 
-    ext (Ref Any)
+    ext (Ty.Ref Ty.Any)
       { f = fun (type a) (ty : a ty) -> (match ty with
            | Ty.Ref t ->
              Record { name = "ref"
-                     ; fields = Cons ( { name = "contents"
-                                        ; ty = t
-                                        (*; bound = 0 *)
-                                        ; set = Some (fun r x -> r := x)
-                                        }
-                                      , Nil
-                                      )
-                     ; iso = { fwd = (fun (x,()) -> ref x)
-                             ; bck = (fun r -> (!r, ()))
-                             }
-                     }
+                    ; module_path = ["Core"]
+                    ; fields = Cons ( { name = "contents"
+                                      ; ty = t
+                                      (*; bound = 0 *)
+                                      ; set = Some (fun r x -> r := x)
+                                      }
+                                    , Nil
+                                    )
+                    ; iso = { fwd = (fun (x,()) -> ref x)
+                            ; bck = (fun r -> (!r, ()))
+                            }
+                    }
            | _ -> assert false : a Desc.t)
       };
   end
@@ -206,84 +266,132 @@ let ext_conap ty =
 
 let () =
   begin
-    ext (Ty Any)
-    { f = fun (type a) (Ty t : a ty)
-          -> (Extensible (Ty_desc.ext t)
-              : a Desc.t)
-    };
-    ext_add_con (Ty Any)
-      {con = fun (type a) (Ty Any : a ty) -> (c0 "Any" Any : a Desc.Con.t)};
-    ext_add_con (Ty Int32)
-      {con = fun (type a) (Ty Int32 : a ty) -> (c0 "Int32" Int32 : a Desc.Con.t)};
-    ext_add_con (Ty Int64)
-      {con = fun (type a) (Ty Int64 : a ty) -> (c0 "Int64" Int64 : a Desc.Con.t)};
-    ext_add_con (Ty Nativeint)
-      {con = fun (type a) (Ty Nativeint : a ty) -> (c0 "Nativeint" Nativeint : a Desc.Con.t)};
-    ext_add_con (Ty Exn)
-      {con = fun (type a) (Ty Exn : a ty) -> (c0 "Exn" Exn : a Desc.Con.t)};
-    ext_add_con (Ty Bool)
-      {con = fun (type a) (Ty Bool : a ty) -> (c0 "Bool" Bool : a Desc.Con.t)};
-    ext_add_con (Ty Int)
-      {con = fun (type a) (Ty Int : a ty) -> (c0 "Int" Int : a Desc.Con.t)};
-    ext_add_con (Ty Float)
-      {con = fun (type a) (Ty Float : a ty) -> (c0 "Float" Float : a Desc.Con.t)};
-    ext_add_con (Ty Char)
-      {con = fun (type a) (Ty Char : a ty) -> (c0 "Char" Char : a Desc.Con.t)};
-    ext_add_con (Ty Bytes)
-      {con = fun (type a) (Ty Bytes : a ty) -> (c0 "Bytes" Bytes : a Desc.Con.t)};
-    ext_add_con (Ty String)
-      {con = fun (type a) (Ty String : a ty) -> (c0 "String" String : a Desc.Con.t)};
-    ext_add_con (Ty Ty.option)
-      {con = fun (type a) (Ty (Option x) : a ty)
-             -> (cn "Option" (p1 (Ty x))
-                        (fun (t,()) -> Option t)
-                        (function | Option t -> Some (t,()) | _ -> None) : a Desc.Con.t)};
-    ext_add_con (Ty Ty.list)
-      {con = fun (type a) (Ty (List x) : a ty)
-             -> (cn "List" (p1 (Ty x))
-                        (fun (t,()) -> List t)
-                        (function | List t -> Some (t,()) | _ -> None) : a Desc.Con.t)};
-    ext_add_con (Ty (Array Any))
-      {con = fun (type a) (Ty (Array x) : a ty)
-             -> (cn "Array" (p1 (Ty x))
-                        (fun (t,()) -> Array t)
-                        (function | Array t -> Some (t,()) | _ -> None) : a Desc.Con.t)};
+    ext (Ty.Ty Ty.Any)
+    { f = fun (type a) (ty : a ty) -> (match ty with
+          | Ty.Ty t -> Extensible (Ty_desc.ext t)
+          | _ -> assert false : a Desc.t) };
 
-    ext_add_con (Ty (Ref Any))
-      {con = fun (type a) (Ty (Ref x) : a ty)
-             -> (cn "Ref" (p1 (Ty x))
-                        (fun (t,()) -> Ref t)
-                        (function | Ref t -> Some (t,()) | _ -> None) : a Desc.Con.t)};
+    ext_add_con (Ty.Ty Ty.Any)
+      {con = fun (type a) (ty : a ty) -> (match ty with
+           | Ty.Ty Ty.Any -> c0 "Any" Ty.Any
+           | _ -> assert false : a Desc.Con.t) };
 
-    ext_add_con (Ty (Lazy Any))
-      {con = fun (type a) (Ty (Lazy x) : a ty)
-             -> (cn "Lazy" (p1 (Ty x))
-                        (fun (t,()) -> Lazy t)
-                        (function | Lazy t -> Some (t,()) | _ -> None) : a Desc.Con.t)};
+    ext_add_con (Ty.Ty Ty.Int32)
+      {con = fun (type a) (ty : a ty) -> (match ty with
+           | Ty.Ty Ty.Int32 -> c0 "Int32" Ty.Int32
+           | _ -> assert false : a Desc.Con.t) };
 
-    ext_add_con (Ty (Ty Any))
-      {con = fun (type a) (Ty (Ty x) : a ty)
-             -> (cn "Ty" (p1 (Ty x))
-                        (fun (t,()) -> Ty t)
-                        (function | Ty t -> Some (t,()) | _ -> None) : a Desc.Con.t)};
-    ext_add_con (Ty Ty.pair)
-      {con = fun (type a) (Ty (Pair (x,y)) : a ty)
-             -> (cn "Pair" (p2 (Ty x) (Ty y))
-                        (fun (x,(y,())) -> Pair(x,y))
-                        (function | Pair (x,y) -> Some (x,(y,())) | _ -> None) : a Desc.Con.t)};
+    ext_add_con (Ty.Ty Ty.Int64)
+      {con = fun (type a) (ty : a ty) -> (match ty with
+           | Ty.Ty Ty.Int64 -> c0 "Int64" Ty.Int64
+           | _ -> assert false : a Desc.Con.t)
+      };
+    ext_add_con (Ty.Ty Ty.Nativeint)
+      {con = fun (type a) (ty : a ty) -> (match ty with
+           | Ty.Ty Ty.Nativeint -> c0 "Nativeint" Ty.Nativeint
+           | _ -> assert false : a Desc.Con.t) };
+
+    ext_add_con (Ty.Ty Ty.Exn)
+      {con = fun (type a) (ty : a ty) -> (match ty with
+           | Ty.Ty Ty.Exn -> c0 "Exn" Ty.Exn
+           | _ -> assert false : a Desc.Con.t) };
+    ext_add_con (Ty.Ty Ty.Bool)
+      {con = fun (type a) (ty : a ty) -> (match ty with
+           | Ty.Ty Ty.Bool -> c0 "Bool" Ty.Bool
+           | _ -> assert false : a Desc.Con.t) };
+    ext_add_con (Ty.Ty Ty.Int)
+      {con = fun (type a) (ty : a ty) -> (match ty with
+           | Ty.Ty Ty.Int -> c0 "Int" Ty.Int
+           | _ -> assert false : a Desc.Con.t) };
+    ext_add_con (Ty.Ty Ty.Float)
+      {con = fun (type a) (ty : a ty) -> (match ty with
+           | Ty.Ty Ty.Float -> c0 "Float" Ty.Float
+           | _ -> assert false : a Desc.Con.t) };
+
+    ext_add_con (Ty.Ty Ty.Char)
+      {con = fun (type a) (ty : a ty) -> (match ty with
+           | Ty.Ty Ty.Char -> c0 "Char" Ty.Char
+           | _ -> assert false : a Desc.Con.t) };
+
+    ext_add_con (Ty.Ty Ty.Bytes)
+      {con = fun (type a) (ty : a ty) -> (match ty with
+           | Ty.Ty Ty.Bytes -> c0 "Bytes" Ty.Bytes
+           | _ -> assert false : a Desc.Con.t) };
+
+    ext_add_con (Ty.Ty Ty.String)
+      {con = fun (type a) (ty : a ty) -> (match ty with
+           | Ty.Ty Ty.String -> c0 "String" Ty.String
+           | _ -> assert false : a Desc.Con.t) };
+
+    ext_add_con (Ty.Ty Ty.option)
+      {con = fun (type a) (ty : a ty) -> (match ty with
+           | Ty.Ty (Ty.Option x)
+             -> cn "Option" (p1 (Ty.Ty x))
+                  (fun (t,()) -> Ty.Option t)
+                  (function | Ty.Option t -> Some (t,()) | _ -> None)
+           | _ -> assert false : a Desc.Con.t)};
+
+    ext_add_con (Ty.Ty Ty.list)
+      {con = fun (type a) (ty : a ty) -> (match ty with
+           | Ty.Ty (Ty.List x)
+             -> cn "List" (p1 (Ty.Ty x))
+                  (fun (t,()) -> Ty.List t)
+                  (function | Ty.List t -> Some (t,()) | _ -> None)
+           | _ -> assert false : a Desc.Con.t)};
+
+    ext_add_con (Ty.Ty (Ty.Array Ty.Any))
+      {con = fun (type a) (ty : a ty) -> (match ty with
+           | Ty.Ty (Ty.Array x)
+             -> cn "Array" (p1 (Ty.Ty x))
+                  (fun (t,()) -> Ty.Array t)
+                  (function | Ty.Array t -> Some (t,()) | _ -> None)
+           | _ -> assert false : a Desc.Con.t)};
+
+    ext_add_con (Ty.Ty (Ty.Ref Ty.Any))
+      {con = fun (type a) (ty : a ty) -> (match ty with
+           | Ty.Ty (Ty.Ref x)
+             -> cn "Ref" (p1 (Ty.Ty x))
+                  (fun (t,()) -> Ty.Ref t)
+                  (function | Ty.Ref t -> Some (t,()) | _ -> None)
+           | _ -> assert false : a Desc.Con.t)};
+
+    ext_add_con (Ty.Ty (Ty.Lazy Ty.Any))
+      {con = fun (type a) (ty : a ty) -> (match ty with
+           | Ty.Ty (Ty.Lazy x)
+             -> cn "Ty.Lazy" (p1 (Ty.Ty x))
+                  (fun (t,()) -> Ty.Lazy t)
+                  (function | Ty.Lazy t -> Some (t,()) | _ -> None)
+           | _ -> assert false : a Desc.Con.t)};
+
+    ext_add_con (Ty.Ty (Ty.Ty Ty.Any))
+      {con = fun (type a) (ty : a ty) -> (match ty with
+           | Ty.Ty (Ty.Ty x)
+             -> cn "Ty" (p1 (Ty.Ty x))
+                  (fun (t,()) -> Ty.Ty t)
+                  (function | Ty.Ty t -> Some (t,()) | _ -> None)
+           | _ -> assert false : a Desc.Con.t)};
+
+    ext_add_con (Ty.Ty Ty.pair)
+      {con = fun (type a) (ty : a ty) -> (match ty with
+           | Ty.Ty (Ty.Pair (x,y))
+             -> cn "Pair" (p2 (Ty.Ty x) (Ty.Ty y))
+                  (fun (x,(y,())) -> Ty.Pair(x,y))
+                  (function | Ty.Pair (x,y) -> Some (x,(y,())) | _ -> None)
+           | _ -> assert false : a Desc.Con.t)};
   end
 
 
 let exn_add_con (c : exn Desc.Con.t) =
-    ext_add_con Exn {con = fun (type a) (ty : a ty) ->
-        match ty with | Exn -> (c : a Desc.Con.t)
-                      | _ -> local_invalid_arg "Generic_core_desc_fun.desc_exn" }
+    ext_add_con Ty.Exn
+      {con = fun (type a) (ty : a ty) -> (match ty with
+           | Ty.Exn -> c
+           | _ -> assert false : a Desc.Con.t) }
 
 let () =
   begin
-    ext_register Exn "exn";
+    ext_register Ty.Exn "exn";
     exn_add_con (c0 "Not_found" Not_found);
-    exn_add_con (cn "Invalid_argument" (p1 String)
+    exn_add_con (cn "Invalid_argument" (p1 Ty.String)
                         (fun (x,()) -> Invalid_argument x)
                         (function Invalid_argument x -> Some (x,()) | _ -> None))
   end

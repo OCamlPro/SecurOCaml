@@ -1,3 +1,5 @@
+[@@@reify_all]
+
 open Generic_core
 open Generic_util
 
@@ -7,7 +9,6 @@ open Product.Build
 
 module M = Generic_fun_marshal
 
-type _ ty += Var : int -> 'a ty
 let print_exn e =
   print_endline (Printexc.to_string e)
   (* ; Printexc.print_backtrace stdout *)
@@ -57,24 +58,6 @@ let test_cast_fail m x t =
   expect_fail ();
   let _ = cast m x t in ()
 
-(* let test_cast' msg x t = *)
-(*   begin *)
-(*     print_endline "*** To_repr ARG"; *)
-(*     print_obj x; *)
-(*     match M.to_repr t x with *)
-(*     | Some y -> *)
-(*        begin *)
-(*          print_endline "*** To_repr RESULT"; *)
-(*          print_obj y; *)
-(*          match M.from_repr t y with *)
-(*          | Some z -> print_endline ("*** Success        " ^ msg); *)
-(*                      if debug then *)
-(*                        print_obj z; *)
-(*          | None -> print_endline   ("*** Failure (From) " ^ msg) *)
-(*        end *)
-(*     | None ->  print_endline       ("*** Failure (To)   " ^ msg) *)
-(*   end *)
-
 let test_marshal eq msg x t =
   begin
     print_endline ("test_marshal [" ^ msg ^ "]");
@@ -103,13 +86,9 @@ let _ =
 (* Types abstraits *)
 
 (* Naturals *)
-type nat = int
-type _ ty += Nat : nat ty
+type nat = int [@@abstract]
 let () =
   begin
-    Desc_fun.ext Nat { f = fun (type a) (ty : a ty) -> match ty with
-        | Nat -> (Abstract : a Desc.t)
-        | _ -> assert false };
     Repr.ext Nat
       { f = fun (type a) (ty : a ty) -> match ty with
            | Nat -> (Repr.Repr { repr_ty = Int
@@ -124,24 +103,14 @@ let () =
     test_cast "5 : nat" 5 Nat;
     test_cast_fail "-1 : nat" (-1) Nat;
   end
+
+
 (* cycle *)
-type u = {s : string; mutable x : v option}
-and v = {i : int; mutable y : u option}
-
-
-type _ ty += U : u ty | V : v ty
+type u = {s : string; mutable x : v option} [@@abstract]
+and v = {i : int; mutable y : u option} [@@abstract]
 
 let () =
   begin
-    Desc_fun.ext_add_con (Ty U)
-      {con = fun (type a) (Ty U : a ty) -> (Desc.Con.c0 "U" U : a Desc.Con.t)};
-
-    Desc_fun.ext U { f = fun (type a) (ty : a ty) -> match ty with
-        | U -> (Abstract : a desc)
-        | _ -> assert false };
-    Desc_fun.ext V { f = fun (type a) (ty : a ty) -> match ty with
-        | V -> (Abstract : a desc)
-        | _ -> assert false };
     Repr.ext U
       { f = fun (type a) (ty : a ty) -> match ty with
            | U -> (Repr.Repr { repr_ty = Pair (String, Option V)
@@ -173,15 +142,13 @@ let () =
 
 module Stream =
   (struct
-    type t = C of int * t Lazy.t
+    type t = C of int * t Lazy.t [@@abstract]
     let cons h t = C (h,t)
-
-    type _ ty += T : t ty
 
     (* cyclic stream *)
     let to_cycle =
       function
-      | [] -> assert false (*raise (Invalid_argument "to_cycle []")*)
+      | [] -> raise (Invalid_argument "to_cycle []")
       | x :: xs ->
          let rec go = function
            | h :: t -> C (h, lazy (go t))
@@ -198,9 +165,6 @@ module Stream =
                       x0 :: go (Lazy.force x')
 
     let () =
-      Desc_fun.ext T { f = fun (type a) (ty : a ty) -> match ty with
-          | T -> (Abstract : a desc)
-          | _ -> assert false };
       Repr.ext T
         { f = fun (type a) (ty : a ty) -> match ty with
              | T -> (Repr.Repr { repr_ty = List Int
@@ -217,7 +181,6 @@ module Stream =
       type t
       val cons : int -> t Lazy.t -> t
       val from_cycle : t -> int list
-      type _ ty += T : t ty
     end);;
 
 let cycle_123 =
@@ -231,6 +194,8 @@ let () =
 
 (**************************************************)
 (* Objets *)
+
+type _ ty += Var of int
 
 let p =
     object
@@ -294,7 +259,7 @@ class point init =
     method len : 'a . 'a list -> int = List.length
   end
 
-type _ ty += Point : point ty
+type _ ty += Point : point ty [@@dont_reify]
 
 let () =
   begin
@@ -339,7 +304,7 @@ and b init =
     method get_a = a
   end
 
-type _ ty += A : a ty | B : b ty
+type _ ty += A : a ty | B : b ty [@@dont_reify]
 
 let a_b_cycle = new a (new b None)
 let () = a_b_cycle # get_b # set_a a_b_cycle
@@ -347,9 +312,13 @@ let () = a_b_cycle # get_b # set_a a_b_cycle
 let () =
   begin
     Desc_fun.ext_add_con (Ty A)
-      {con = fun (type a) (Ty A : a ty) -> (Desc.Con.c0 "A" A : a Desc.Con.t)};
+      {con = fun (type a) (ty : a ty) ->
+          (match ty with Ty A -> Desc.Con.c0 "A" A
+                       | _ -> assert false : a Desc.Con.t)};
     Desc_fun.ext_add_con (Ty B)
-      {con = fun (type a) (Ty B : a ty) -> (Desc.Con.c0 "B" B : a Desc.Con.t)};
+      {con = fun (type a) (ty : a ty) ->
+          (match ty with Ty B -> Desc.Con.c0 "B" B
+                       | _ -> assert false : a Desc.Con.t)};
 
     Desc_fun.ext A { f = fun (type a) (ty : a ty) -> match ty with
         | A -> (Abstract : a desc)
@@ -384,28 +353,8 @@ let () =
 
 type c = int list
 type d = c
-type _ ty += C : c ty
-type _ ty += D : d ty
 let () =
   begin
-    Desc_fun.ext_add_con (Ty D)
-      {con = fun (type a) (Ty D : a ty) -> (Desc.Con.c0 "D" D : a Desc.Con.t)};
-
-    Desc_fun.ext_add_con (Ty C)
-    { con = fun (type a) (Ty C : a ty)
-          -> (Desc.Con.make "C" p0
-                     (fun () -> C)
-                     (function | C -> Some ()
-                               | _ -> None)
-              : a Desc.Con.t)
-    };
-
-    Desc_fun.ext C { f = fun (type a) (ty : a ty) -> match ty with
-        | C -> (Synonym (List Int, Refl) : a desc)
-        | _ -> assert false };
-    Desc_fun.ext D { f = fun (type a) (ty : a ty) -> match ty with
-        | D -> (Synonym (C, Refl) : a desc)
-        | _ -> assert false };
     test_cast "[3] : d" [3] D;
     test_marshal true "[3] : d" [3] D;
   end

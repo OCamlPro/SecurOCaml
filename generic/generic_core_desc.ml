@@ -182,7 +182,11 @@ module Variant = struct
     let (c0,cn) = List.partition (fun c -> Con.arity c == 0) cs
     in (cons_array c0, cons_array cn)
 
-  type 'v variant = {name : string; cons : 'v cons}
+  type 'v variant =
+    { name : string
+    ; module_path : string list
+    ; cons : 'v cons
+    }
 
   type 'v t = 'v variant
 
@@ -373,10 +377,9 @@ module Field = struct
   end
 
   type ('a,'r) t = ('a,'r) T.field = {
-    name : string;
-    ty : 'a ty;
-    (*  bound : int;*)
-    set : ('r -> 'a -> unit) option;
+    name : string; (** name of the field *)
+    ty : 'a ty; (** type of the field *)
+    set : ('r -> 'a -> unit) option; (** procedure for updating the field if it is mutable *)
   }
 
   let is_mutable fd = fd.set != None
@@ -412,16 +415,17 @@ module Record = struct
   module T = struct
     type ('p,'r) record =
       { name : string
+      ; module_path : string list
       ; fields : ('p, 'r) Fields.t
       ; iso : ('p, 'r) Fun.iso
       }
   end
   type ('p,'r) t = ('p,'r) T.record =
     { name : string
+    ; module_path : string list
     ; fields : ('p, 'r) Fields.t
     ; iso : ('p, 'r) Fun.iso
     }
-
   let product r = Fields.product r.fields
   let types_of_mutable_fields r = Fields.types_of_mutable_fields r.fields
   let tuple r x = (product r, r.iso.bck x)
@@ -463,13 +467,11 @@ module Custom = struct
   module T = struct
     type 'a custom =
       { name : string
+      ; module_path : string list
       ; identifier : string
       }
   end
-  type 'a t = 'a T.custom =
-    { name : string
-    ; identifier : string
-    }
+  type 'a t = 'a T.custom
 end (* Custom *)
 
 module T = struct

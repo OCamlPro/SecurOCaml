@@ -171,9 +171,9 @@ module Variant : sig
   *)
 
   (** {b Variant.}
-      A variant is given by its [name] and the set [cons] of its constructors.
+      A variant is given by its [name] the module in which it was defined and the set [cons] of its constructors.
   *)
-  type 'v variant = { name : string; cons : 'v cons; }
+  type 'v variant = { name : string; module_path : string list; cons : 'v cons; }
 
   (** Synonym for convenience. *)
   type 'v t = 'v variant
@@ -335,7 +335,6 @@ module Field : sig
     type ('a, 'r) field = {
       name : string; (** name of the field *)
       ty : 'a ty; (** type of the field *)
-      (*  bound : int;*)
       set : ('r -> 'a -> unit) option; (** procedure for updating the field if it is mutable *)
     }
   end
@@ -346,7 +345,6 @@ module Field : sig
   type ('a,'r) t = ('a,'r) T.field = {
     name : string; (** name of the field *)
     ty : 'a ty; (** type of the field *)
-    (*  bound : int;*)
     set : ('r -> 'a -> unit) option; (** procedure for updating the field if it is mutable *)
   }
 
@@ -396,6 +394,7 @@ module Record : sig
     *)
     type ('p, 'r) record =
       { name : string
+      ; module_path : string list
       ; fields : ('p, 'r) Fields.t
       ; iso : ('p, 'r) Fun.iso
       }
@@ -405,6 +404,7 @@ module Record : sig
       type [r] isomorphic to the product type [p]. *)
   type ('p,'r) t = ('p,'r) T.record =
     { name : string
+    ; module_path : string list
     ; fields : ('p, 'r) Fields.t
     ; iso : ('p, 'r) Fun.iso
     }
@@ -508,6 +508,7 @@ module Custom : sig
   module T : sig
     type 'a custom = {
       name : string;               (** name of the OCaml type *)
+      module_path : string list;
       identifier : string; (** the identifier correspond to the homonymous field of the C-struct [custom_operations] is defined in [<caml/custom.h>] *)
     }
   end

@@ -42,6 +42,14 @@ The core generic library comes with the type reflection and introspection for al
      | Ty     : 'a ty -> 'a ty ty
      | Unit   : unit ty
      | Pair   : 'a ty * 'b ty -> ('a * 'b) ty
+     | Triple   : 'a ty * 'b ty * 'c ty -> ('a * 'b * 'c) ty
+     | Quadruple : 'a ty * 'b ty * 'c ty * 'd ty -> ('a * 'b * 'c * 'd) ty
+     | Quintuple : 'a ty * 'b ty * 'c ty * 'd ty * 'e ty -> ('a * 'b * 'c * 'd * 'e) ty
+     | Sextuple  : 'a ty * 'b ty * 'c ty * 'd ty * 'e ty * 'f ty -> ('a * 'b * 'c * 'd * 'e * 'f) ty
+     | Septuple  : 'a ty * 'b ty * 'c ty * 'd ty * 'e ty * 'f ty * 'g ty -> ('a * 'b * 'c * 'd * 'e * 'f * 'g) ty
+     | Octuple   : 'a ty * 'b ty * 'c ty * 'd ty * 'e ty * 'f ty * 'g ty * 'h ty -> ('a * 'b * 'c * 'd * 'e * 'f * 'g * 'h) ty
+     | Nonuple   : 'a ty * 'b ty * 'c ty * 'd ty * 'e ty * 'f ty * 'g ty * 'h ty * 'i ty -> ('a * 'b * 'c * 'd * 'e * 'f * 'g * 'h * 'i) ty
+     | Decuple   : 'a ty * 'b ty * 'c ty * 'd ty * 'e ty * 'f ty * 'g ty * 'h ty * 'i ty * 'j ty -> ('a * 'b * 'c * 'd * 'e * 'f * 'g * 'h * 'i * 'j) ty
      | Fun    : 'a ty * 'b ty -> ('a -> 'b) ty
 end
 

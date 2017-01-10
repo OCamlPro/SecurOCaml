@@ -16,7 +16,9 @@ type 'a t = 'a repr
 type tag = Tag
 type (_,_) app += App : 'a repr -> ('a, tag) app
 
-let unapp (App x) = x
+let unapp = function
+  | App x -> x
+  | _ -> invalid_arg "Generic_core_repr.unapp"
 
 (** Type-indexed function that associates a representation to an abstract type. *)
 type repr_fun =

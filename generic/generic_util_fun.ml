@@ -16,6 +16,10 @@ let res3 f = res1 res1 res2 f
 let res4 f = res1 res1 res3 f
 let res5 f = res1 res1 res4 f
 let res6 f = res1 res1 res5 f
+let res7 f = res1 res1 res6 f
+let res8 f = res1 res1 res7 f
+let res9 f = res1 res1 res8 f
+let res10 f = res1 res1 res9 f
 
 let opres op f g = fun x -> op (f x) (g x)
 let opon op f x y = op (f x) (f y)

@@ -6,7 +6,7 @@ exception Not_yet_implemented
 (** A function may raise [Undefined] outside of its domain of definition. *)
 exception Undefined
 
-(** Indicates a failure. Used by {!guard}, {!only_if}, {!one_of}, {!get_some}.
+(** Indicates a failure. Used by {!guard}, {!only_if}, {!one_of}, {!Generic_util_option.get_some}.
 *)
 exception Failed
 

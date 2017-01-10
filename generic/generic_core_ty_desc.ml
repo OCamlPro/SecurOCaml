@@ -9,7 +9,7 @@ This is why we had to provide those functions in a separate module.
 open Generic_core
 
 let cons = Desc.Ext.create()
-let ext t = {Desc.Ext.name = "Ty"; ty = Ty.T.Ty t; cons}
+let ext t = {Desc.Ext.name = "Ty"; ty = Ty.Ty t; cons}
 
 (* @raise Type_pattern_overwrite
    @raise Not_found *)

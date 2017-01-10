@@ -84,6 +84,49 @@ module Build : sig
     'e ty ->
     'f ty ->
     ('a * ('b * ('c * ('d * ('e * ('f * unit)))))) t
+  val p7 :
+    'a ty ->
+    'b ty ->
+    'c ty ->
+    'd ty ->
+    'e ty ->
+    'f ty ->
+    'g ty ->
+    ('a * ('b * ('c * ('d * ('e * ('f * ('g * unit))))))) t
+  val p8 :
+    'a ty ->
+    'b ty ->
+    'c ty ->
+    'd ty ->
+    'e ty ->
+    'f ty ->
+    'g ty ->
+    'h ty ->
+    ('a * ('b * ('c * ('d * ('e * ('f * ('g * ('h * unit)))))))) t
+  val p9 :
+    'a ty ->
+    'b ty ->
+    'c ty ->
+    'd ty ->
+    'e ty ->
+    'f ty ->
+    'g ty ->
+    'h ty ->
+    'i ty ->
+    ('a * ('b * ('c * ('d * ('e * ('f * ('g * ('h * ('i * unit))))))))) t
+  val p10 :
+    'a ty ->
+    'b ty ->
+    'c ty ->
+    'd ty ->
+    'e ty ->
+    'f ty ->
+    'g ty ->
+    'h ty ->
+    'i ty ->
+    'j ty ->
+    ('a * ('b * ('c * ('d * ('e * ('f * ('g * ('h * ('i * ('j * unit)))))))))) t
+
 end
 
 (** {2 Products as Lists}
