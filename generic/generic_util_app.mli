@@ -50,6 +50,24 @@
 module T : sig
   (** Extensible GADT interpreting type application.  *)
   type (_,_) app = ..
+
+  type 'f functorial =
+    { fmap : 'a 'b . ('a -> 'b) -> ('a, 'f) app -> ('b, 'f) app }
+
+  type 'f applicative =
+    { pure : 'a . 'a -> ('a,'f) app
+    ; apply : 'a 'b . ('a -> 'b, 'f) app -> ('a, 'f) app -> ('b, 'f) app
+    }
+
+  type 'f monad =
+    { return : 'a . 'a -> ('a,'f) app
+    ; bind : 'a 'b . ('a , 'f) app -> ('a -> ('b, 'f) app) -> ('b, 'f) app
+    }
+
+  type 't monoid =
+    { mempty : 't
+    ; mappend : 't -> 't -> 't
+    }
 end
 
 (** Synonym for convenience, when namespace [Generic_util] is
@@ -57,6 +75,21 @@ end
     refer to [App.T.app] as [App.t].
 *)
 type ('a,'b) t = ('a,'b) T.app
+
+(** {2 Core parametric  types} *)
+type option' = OPTION
+type (_,_) t += Option : 'a option -> ('a, option') t
+val get_option : ('a, option') t -> 'a option
+
+type array' = ARRAY
+type (_,_) t += Array : 'a array -> ('a, array') t
+val get_array : ('a, array') t -> 'a array
+
+(** {2 Identity Functor} *)
+
+type id = ID
+type (_, _) t += Id : 'a -> ('a, id) t
+val get_id : ('a, id) t -> 'a
 
 (** {2 Constant Functor} *)
 
@@ -91,3 +124,75 @@ type (_, _) t += Exponential : ('a -> 'b) -> ('a, 'b exponential) t
 
 (** Get the argument of the [Exponential] constructor *)
 val get_exponential : ('a, 'b exponential) t -> 'a -> 'b
+
+(** {2 Functor Composition}
+*)
+type ('f, 'g) comp = COMP
+type (_, _) t += Comp : (('a,'f) t, 'g) t -> ('a, ('f, 'g) comp) t
+val get_comp : ('a, ('f, 'g) comp) t -> (('a,'f) t, 'g) t
+
+(** {1 Operations} *)
+
+(** {2 Conversion} *)
+
+val fun_of_app : 'a T.applicative -> 'a T.functorial
+val fun_of_mon : 'a T.monad -> 'a T.functorial
+val app_of_mon : 'a T.monad -> 'a T.applicative
+
+(** {2 Applicative} *)
+
+val liftA : 'f T.applicative -> ('a -> 'b) ->
+  ('a, 'f) T.app -> ('b, 'f) T.app
+val liftA2 : 'f T.applicative -> ('a -> 'b -> 'c) ->
+  ('a, 'f) T.app -> ('b, 'f) T.app -> ('c, 'f) T.app
+val liftA3 : 'f T.applicative -> ('a -> 'b -> 'c -> 'd) ->
+ ('a, 'f) T.app -> ('b, 'f) T.app -> ('c, 'f) T.app -> ('d, 'f) T.app
+val liftA4 : 'f T.applicative -> ('a -> 'b -> 'c -> 'd -> 'e) ->
+ ('a, 'f) T.app -> ('b, 'f) T.app -> ('c, 'f) T.app -> ('d, 'f) T.app -> ('e, 'f) T.app
+
+(** {2 Monad} *)
+
+val liftM : 'f T.monad -> ('a -> 'b) ->
+  ('a, 'f) T.app -> ('b, 'f) T.app
+val liftM2 : 'f T.monad -> ('a -> 'b -> 'c) ->
+  ('a, 'f) T.app -> ('b, 'f) T.app -> ('c, 'f) T.app
+val liftM3 : 'f T.monad -> ('a -> 'b -> 'c -> 'd) ->
+ ('a, 'f) T.app -> ('b, 'f) T.app -> ('c, 'f) T.app -> ('d, 'f) T.app
+val liftM4 : 'f T.monad -> ('a -> 'b -> 'c -> 'd -> 'e) ->
+ ('a, 'f) T.app -> ('b, 'f) T.app -> ('c, 'f) T.app -> ('d, 'f) T.app -> ('e, 'f) T.app
+
+val join : 'a T.monad -> (('b, 'a) T.app, 'a) T.app -> ('b, 'a) T.app
+
+(** {2 instances} *)
+val id_applicative : id T.applicative
+val id_monad : id T.monad
+val const_applicative : 'a T.monoid -> 'a const T.applicative
+
+(** {2 state monad} *)
+type 'b state = STATE
+type (_, _) T.app += State : ('b -> 'a * 'b) -> ('a, 'b state) T.app
+val run_state : ('a, 'b state) T.app -> 'b -> 'a * 'b
+val state : 'a state T.monad
+val get : ('a, 'a state) T.app
+val put : 'a -> (unit, 'a state) T.app
+
+(** {2 reader monad} *)
+type 'b reader = READER
+type (_, _) T.app += Reader : ('b -> 'a) -> ('a, 'b reader) T.app
+val run_reader : ('a, 'b reader) T.app -> 'b -> 'a
+val reader : 'a reader T.monad
+val ask : ('a, 'a reader) T.app
+val local : ('a -> 'b) -> ('c, 'b reader) T.app -> ('c, 'a reader) T.app
+
+(** {io monad} *)
+type io = IO_
+type (_, _) T.app += IO : (unit -> 'a) -> ('a, io) T.app
+val run_io : ('a, io) T.app -> 'a
+val io : io T.monad
+val lift_io : (unit -> 'a) -> ('a, io) T.app
+
+(** {2 monoids} *)
+val int_sum : int T.monoid
+val int_prod : int T.monoid
+val float_sum : float T.monoid
+val float_prod : float T.monoid

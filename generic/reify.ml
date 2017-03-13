@@ -4,6 +4,18 @@
     definition in the current file, unless they are annotated
     with [@@dont_reify].
 
+    [@@no_desc]] means that the desc view is not derived, but
+    [ty] and [ty_desc] as well as [equal] are all derived.
+
+    [@@abstract]] means that the desc view is set to Abstract, and
+    [ty] and [ty_desc] as well as [equal] are all derived as usual.
+
+    Class declarations are reified as abstract types by default.
+
+
+    Objects (anonymous classes) and polymorphic variants are
+    not reified yet.
+
     A [Generic_core.Ty.t] constructor (type witness) is added
     directly after each annotated type definition. The name
     of the constructor is the same as the type name but with
@@ -15,6 +27,9 @@
     imported from [Generic_core.Ty.T].
 
     Be careful with name shadowing!
+
+    The PPX may be run on ML files and MLI files. In the MLI
+    files, only the [ty] extensions are derived.
 
     TODO: better error locations.
 *)
@@ -29,6 +44,8 @@
    mapper. The later approach doesn't have side effects.  We
    define clojures to share the contextual information
    between the records fields. (See [main] for instance)
+
+TODO: better use multiplate!
 *)
 
 open Ast_mapper
@@ -46,6 +63,7 @@ let local_invalid_arg msg = invalid_arg (__MODULE__ ^ "." ^ msg)
 let reify_attrname = "reify"
 let reify_all_attrname = "reify_all"
 let abstract_attrname = "abstract"
+let no_desc_attrname = "no_desc"
 let dont_reify_attrname = "dont_reify"
 let generic_core_ty = Ldot (Lident "Generic_core", "Ty")
 let ty_lid = Ldot (generic_core_ty, "ty")
@@ -65,7 +83,9 @@ let has_reify = has_attr reify_attrname
 let tydecl_has_reify = tydecl_has_attr reify_attrname
 let has_dont_reify = has_attr dont_reify_attrname
 let tydecl_dont_reify = tydecl_has_attr dont_reify_attrname
-let tydecl_has_abstract = tydecl_has_attr abstract_attrname
+let tydecl_abstract = tydecl_has_attr abstract_attrname
+let tydecl_no_desc = tydecl_has_attr no_desc_attrname
+
 
 (* Obtain the name of the witness given the name of the type.
    (not a longident)
@@ -81,6 +101,19 @@ let witness_lid = function
 let loc ?(loc = !default_loc) txt = {txt; loc}
 let lid s = loc (Lident s)
 let to_lid {txt; loc} = {txt=Lident txt ;loc}
+
+(* turn a core type into a label declaration with an empty name *)
+let ld_of_ct ct =
+  { pld_name = loc ""
+  ; pld_mutable = Immutable
+  ; pld_type = ct
+  ; pld_loc = !default_loc
+  ; pld_attributes = []
+  }
+
+let lds_of_args = function
+  | Pcstr_tuple cts -> List.map ld_of_ct cts
+  | Pcstr_record lds -> lds
 
 let exp_str s = Exp.constant (Pconst_string (s, None))
 let exp_str_append x y = [%expr [%e exp_str x] ^ [%e exp_str y]]
@@ -107,18 +140,31 @@ let ty_vars n =
 
 let var_name = "x"
 
-let pat_var n =
-  Pat.var (loc (var var_name n))
+let pat_var' v n =
+  Pat.var (loc (var v n))
+
+let pat_var = pat_var' var_name
 
 (** List of pattern variables of size [n] *)
-let pat_vars n =
-  List.map pat_var (Listx.from_to 1 n)
+let pat_vars' v n =
+  List.map (pat_var' v) (Listx.from_to 1 n)
 
-let exp_var n =
-  Exp.ident (lid (var var_name n))
+let pat_vars = pat_vars' var_name
 
-let exp_vars n =
-  List.map exp_var (Listx.from_to 1 n)
+let lid_var' v n =
+  lid (var v n)
+let lid_var = lid_var' var_name
+
+let exp_var' v n =
+  Exp.ident (lid_var' v n)
+let exp_var = exp_var' var_name
+
+let exp_vars' v n =
+  List.map (exp_var' v) (Listx.from_to 1 n)
+let exp_vars = exp_vars' var_name
+
+let var_names n =
+  List.map (var var_name) (Listx.from_to 1 n)
 
 (** {[ prod [t1;t2..;tn] = Cons (t1 , Cons (t2, ... Cons (tn, Nil) ...)) ]} *)
 let prod =
@@ -131,9 +177,10 @@ let prod =
 let ty_args n =
   List.map (fun x -> [%expr Generic_core.Ty.Ty [%e x]]) (exp_vars n)
 
-(** Cons (Ty x1 , Cons (Ty x2, ... Cons (Ty xn, Nil) ...)) *)
-let ty_prod n =
-  prod (ty_args n)
+(** [Ty x1; ... Ty xn] as a list of label declaration with empty labels *)
+let ty_lds n =
+  List.map (fun x -> ld_of_ct [%type: [%t Typ.var x] Generic_core.Ty.ty])
+     (var_names n)
 
 (** (x1, (x2, ..., (xn, ())...)) *)
 let exp_nested_tuple =
@@ -157,11 +204,10 @@ let pat_record_pun fields =
   Pat.record (List.map (fun loc -> (to_lid loc, Pat.var loc))
                 fields) Closed
 
-
 (** General constructor where the arguments are given as a list.
  *)
-let cons constructor tuple name =
-  let consN args = constructor (loc name) args
+let cons construct tuple name =
+  let consN args = construct (loc name) args
   in
   let cons0 = consN None
   and cons1 param = consN (Some param)
@@ -177,6 +223,22 @@ let pat_cons n = cons Pat.construct Pat.tuple (Lident n)
 let exp_cons' = cons Exp.construct Exp.tuple
 let pat_cons' = cons Pat.construct Pat.tuple
 
+(* a constructor expression with inlined record,
+the fields are given by the the list of labels of type [string loc]
+and the arguments are given by the [args] in the same order.
+*)
+let cons_record construct record name labels args =
+  let consN = construct (loc name)
+  in match args with
+  | [] ->
+    assert (List.length labels = 0);
+    consN None
+  | ps ->
+    consN (Some (record (List.combine labels args)))
+
+let exp_cons_record n = cons_record Exp.construct (fun x -> Exp.record x None) (Lident n)
+let pat_cons_record n = cons_record Pat.construct (fun x -> Pat.record x Closed) (Lident n)
+
 (** Builds the [core_type] corresponding to [sigma ty] given
 the core type representing [sigma] *)
 let ty sigma = (* Typ.constr (loc ty) [param] *)
@@ -184,10 +246,6 @@ let ty sigma = (* Typ.constr (loc ty) [param] *)
 
 let unit_pattern = (* Pat.construct (loc (Lident "()")) None *)
   [%pat? ()]
-
-(** let () = expr *)
-let statement expr =   (* Str.value Nonrecursive [Vb.mk unit_pattern expr]*)
-  [%stri let () = [%e expr]]
 
 let anys n = Listx.replicate n [%expr Generic_core.Ty.Any]
 
@@ -238,23 +296,52 @@ let rec witness vars ct = match ct.ptyp_desc with
 
   | _ -> [%expr Generic_core.Ty.Any]
 
+
+
+let exp_field_mutable ld =
+  let field = to_lid ld.pld_name in
+  match ld.pld_mutable with
+  | Immutable -> [%expr None]
+  | Mutable ->
+    [%expr Some (fun r x -> [%e
+                  Exp.setfield [%expr r] field [%expr x]])]
+
+let exp_field vars ld =
+  [%expr { Generic_core.Desc.Field.name = [%e exp_str ld.pld_name.txt]
+         ; Generic_core.Desc.Field.ty = [%e witness vars ld.pld_type]
+         ; Generic_core.Desc.Field.set = [%e exp_field_mutable ld]
+         }]
+
+let exp_fields vars =
+  Listx.foldr (fun ld ts ->
+      [%expr Generic_core.Desc.Fields.Cons ([%e exp_field vars ld], [%e ts])])
+    [%expr Generic_core.Desc.Fields.Nil]
+
 (** Builds a constructor description [Desc.Con] from :
 
     [single]: true if the constructor is the only one for this variant.
-    [args]: list of the type parameters of arguments
+    [vars]: type parameters (free variables)
+    [lds]: list of the label declarations for the arguments
     [constr]: name of the constructor
 *)
-let make_con single args constr =
-  let num_args = List.length args in
+let make_con is_tuple single vars lds constr =
+  let num_args = List.length lds in
   let pat_args = pat_vars num_args in
   let exp_args = exp_vars num_args in
   let pat_embed = pat_nested_tuple pat_args in
-  let exp_embed = exp_cons constr exp_args in
-  let pat_proj = pat_cons constr pat_args in
+  let labels = List.map (fun l -> lid l.pld_name.txt) lds in
+  let exp_embed =
+    if is_tuple then exp_cons constr exp_args
+    else exp_cons_record constr labels exp_args
+  in
+  let pat_proj =
+    if is_tuple then pat_cons constr pat_args
+    else pat_cons_record constr labels pat_args
+  in
   let exp_proj = exp_nested_tuple exp_args in
   [%expr Generic_core.Desc.Con.make
       [%e exp_str constr]
-      [%e prod args]
+      [%e exp_fields vars lds]
       (fun [%p pat_embed] -> [%e exp_embed])
       [%e if single
         then [%expr (fun [%p pat_proj] -> Some [%e exp_proj])]
@@ -264,17 +351,18 @@ let make_con single args constr =
             | _ -> None)]]
   ]
 
+let is_tuple = function
+  | Pcstr_tuple _ -> true
+  | _ -> false
+
 (** [single]: true if the constructor is the only one for this variant.
     [vars] the type parameters of the variant.
     [c] the constructor declaration.
 *)
 let variant_constructor single vars c =
-  let args = List.map (witness vars) (
-    match c.pcd_args with
-    | Pcstr_tuple cts -> cts
-    | Pcstr_record lds -> List.map (fun ld -> ld.pld_type) lds)
+  let lds = lds_of_args c.pcd_args
   and constr = c.pcd_name.txt in
-  make_con single args constr
+  make_con (is_tuple c.pcd_args) single vars lds constr
 
 (* The argument must be a type variable. *)
 let var_name ct = match ct.ptyp_desc with
@@ -298,25 +386,6 @@ let desc_variant module_path t cds =
             [%e exp_list (List.map (variant_constructor single (params t)) cds)]
       }]
 
-let exp_field_mutable ld =
-  let field = to_lid ld.pld_name in
-  match ld.pld_mutable with
-  | Immutable -> [%expr None]
-  | Mutable ->
-    [%expr Some (fun r x -> [%e
-                  Exp.setfield [%expr r] field [%expr x]])]
-
-let exp_field vars ld =
-  [%expr { Generic_core.Desc.Field.name = [%e exp_str ld.pld_name.txt]
-         ; Generic_core.Desc.Field.ty = [%e witness vars ld.pld_type]
-         ; Generic_core.Desc.Field.set = [%e exp_field_mutable ld]
-         }]
-
-let exp_fields vars =
-  Listx.foldr (fun ld ts ->
-      [%expr Generic_core.Desc.Fields.Cons ([%e exp_field vars ld], [%e ts])])
-    [%expr Generic_core.Desc.Fields.Nil]
-
 let exp_iso vars lds =
   let fields = List.map (fun ld -> ld.pld_name) lds in
   let lids = List.map to_lid fields in
@@ -336,16 +405,13 @@ let desc_record module_path t lds =
       }
   ]
 
-let no_desc = [%expr Generic_core.Desc.NoDesc]
-let desc_open t = no_desc
-
 let desc_synonym module_path t t' =
   let wt' = witness (params t) t' in
   [%expr Generic_core.Desc.Synonym ([%e wt'], Generic_core.Equal.Refl)]
 
 (** Extends [Desc_fun.view] for type [t] *)
 let desc_ext module_path t =
-  if tydecl_has_abstract t then
+  if tydecl_abstract t then
     [%expr Generic_core.Desc.Abstract]
   else
   match t.ptype_manifest with
@@ -363,11 +429,10 @@ let desc_ext module_path t =
    ]}
 *)
 
-let str_witness t =
-  let ty_name = t.ptype_name.txt in
-  let lid_name = {txt = Lident ty_name; loc = t.ptype_name.loc} in
-  let constr = witness_name ty_name in
-  let num_params = List.length t.ptype_params in
+
+let str_witness' ty_name num_params =
+  let lid_name = to_lid ty_name in
+  let constr = witness_name ty_name.txt in
   let vars = ty_vars num_params in
    (* extend Generic_core.Ty.ty *)
     Str.type_extension
@@ -379,19 +444,19 @@ let str_witness t =
             )
          ])
 
+let str_witness t =
+  str_witness' t.ptype_name (List.length t.ptype_params)
+
 (* [sig_witness] Build the signature item
    {[
        _ ty += X : x ty
    ]}
 *)
-
-let sig_witness t =
-  let ty_name = t.ptype_name.txt in
-  let lid_name = {txt = Lident ty_name; loc = t.ptype_name.loc} in
-  let constr = witness_name ty_name in
-  let num_params = List.length t.ptype_params in
+let sig_witness' ty_name num_params =
+  let lid_name = to_lid ty_name in
+  let constr = witness_name ty_name.txt in
   let vars = ty_vars num_params in
-   (* extend Generic_core.Ty.ty *)
+  (* extend Generic_core.Ty.ty *)
     Sig.type_extension
       (Te.mk ~params:[(Typ.any (), Invariant)] (loc ty_lid)
          [Te.constructor (loc constr)
@@ -401,14 +466,17 @@ let sig_witness t =
             )
          ])
 
-let make_ext_con exp_ty pat_ty constr args =
+let sig_witness t =
+  sig_witness' t.ptype_name (List.length t.ptype_params)
+
+let make_ext_con is_tuple vars exp_ty pat_ty args constr =
   [%stri let () = Generic_core.Desc_fun.ext_add_con
                [%e exp_ty]
     { Generic_core.Desc.Ext.con =
         fun (type a)
             (ty : a Generic_core.Ty.ty) -> (match ty with
             | [%p pat_ty]
-              -> [%e make_con false args constr]
+              -> [%e make_con is_tuple false vars args constr]
             | _ -> assert false : a Generic_core.Desc.Con.t)}
     ]
 
@@ -420,15 +488,11 @@ let ext_constructor ty params c =
   in let exp_t = exp_cons' ty exp_params
   and pat_t = pat_cons' ty pat_params
   and constr = c.pext_name.txt
-  and args = match c.pext_kind with
-    | Pext_decl (args, _) ->
-      List.map (witness params) (
-          match args with
-          | Pcstr_tuple cts -> cts
-          | Pcstr_record lds -> List.map (fun ld -> ld.pld_type) lds)
+  and (tuple, lds) = match c.pext_kind with
+    | Pext_decl (args, _) -> (is_tuple args, lds_of_args args)
     | _ -> assert false
   in
-  make_ext_con exp_t pat_t constr args
+  make_ext_con tuple params exp_t pat_t lds constr
 
 (* Effectful statements, to update the type description:
    Desc.view, and Ty_desc.ext
@@ -441,10 +505,12 @@ let new_desc module_path t =
   let pat_constr = pat_cons constr (pat_vars num_params) in
   let ty_desc_ext = (* extend Generic_core.Ty_desc.ext *)
     make_ext_con
+      true
+      (var_names num_params)
       [%expr Generic_core.Ty.Ty [%e exp_conpat]]
       [%pat? Generic_core.Ty.Ty [%p pat_constr]]
+      (ty_lds num_params)
       constr
-      (ty_args num_params)
 
   and desc_fun_ext = (* extend Generic_core.Desc_fun.view *)
     [%stri
@@ -466,12 +532,48 @@ let new_desc module_path t =
     ]
   in
   let open_type =
-    t.ptype_manifest = None
+    t.ptype_manifest == None
     && t.ptype_kind == Ptype_open
   in
-  [ty_desc_ext;
-   if open_type && not (tydecl_has_abstract t)
-   then ext_reg else desc_fun_ext]
+  [ty_desc_ext]
+  @
+  if tydecl_no_desc t
+  then []
+  else [if open_type && not (tydecl_abstract t)
+        then ext_reg else desc_fun_ext]
+
+(* Extending Generic_core_equal for type [t] *)
+let ext_equal t =
+  let ty_name = t.ptype_name.txt in
+  let constr = witness_name ty_name in
+  let num_params = List.length t.ptype_params in
+  let exp_conpat = exp_cons constr (anys num_params) in
+  let pat_constr_x = pat_cons constr (pat_vars' "x" num_params) in
+  let pat_constr_y = pat_cons constr (pat_vars' "y" num_params) in
+  let rec match_equal n =
+  if n <= 0 then [%expr Some (Generic_core_equal.Refl : (a, b) Generic_core_equal.equal)]
+  else [%expr
+    match Generic_core_equal.equal [%e exp_var' "x" n] [%e exp_var' "y" n] with
+    | Some Generic_core_equal.Refl -> [%e match_equal (n - 1)]
+    | _ -> None]
+  in
+    [%stri
+      let () =
+        Generic_core_equal.ext [%e exp_conpat]
+          { Generic_core_equal.f =
+              fun (type a) (type b) (a : a ty) (b : b ty) ->
+                match (a, b) with
+                | ([%p pat_constr_x], [%p pat_constr_y]) ->
+                  [%e match_equal num_params]
+                | (_, _) -> None }
+    ]
+
+let class_type_witness witness ctd =
+  match ctd with
+  | Pcty_constr ({txt=Lident txt;loc=loc}, params) -> (* we expect an unqualified name  *)
+    [witness {txt;loc} (List.length params)]
+  | _ -> []
+
 
 (** Structure and signature items have commonalities that we
     capture with the `item` type. This allows us to share the
@@ -482,6 +584,8 @@ type item =
   | Attr of attribute
   | Exn of extension_constructor (* reify only in structures *)
   | TypExt of type_extension (* reify only in structures *)
+  | ClassType of class_description list
+  | ClassExpr of class_declaration list
   | Other
 
 (** checks if there is a global [@@@reify_all] attribute, and
@@ -539,7 +643,16 @@ let rm_reify_tydecl sub tydecl =
 
 (** Computes the new items if the structure item is a group
     of type declarations. *)
-let new_items new_repr ext_exn typ_ext reify_all inside_module module_name = function
+let new_items new_class new_repr ext_exn typ_ext reify_all inside_module module_name =
+  let class_info cis =
+    let cis' =
+      if reify_all
+      then List.filter (fun ci -> not (has_dont_reify ci.pci_attributes)) cis
+      else List.filter (fun ci -> has_reify ci.pci_attributes) cis
+    in
+    new_class (List.map (fun ci -> {ci with pci_expr = ()}) cis')
+  in
+  function
   | Type (_, tydecls) ->
     let types =
       if reify_all
@@ -562,10 +675,13 @@ let new_items new_repr ext_exn typ_ext reify_all inside_module module_name = fun
     then ext_exn e else []
 
   | TypExt e ->
-    let attrs = e.ptyext_attributes
-    in if reify_all && not (has_dont_reify attrs)
-       || has_reify attrs
-       then typ_ext e else []
+    let attrs = e.ptyext_attributes in
+    if (reify_all && not (has_dont_reify attrs)
+        || has_reify attrs)
+    then typ_ext e else []
+
+  | ClassType cds -> class_info cds
+  | ClassExpr ces -> class_info ces
   | _ -> []
 
 let str_proj = function
@@ -573,11 +689,26 @@ let str_proj = function
   | Pstr_attribute (a, p) -> Attr (a, p)
   | Pstr_exception e -> Exn e
   | Pstr_typext e -> TypExt e
+  | Pstr_class cds -> ClassExpr cds
+  | Pstr_class_type ctds -> ClassType ctds
   | _ -> Other
 let sig_proj = function
   | Psig_type (r, td) -> Type (r, td)
   | Psig_attribute (a, p) -> Attr (a, p)
+  | Psig_class cds -> ClassType cds
+  | Psig_class_type ctds -> ClassType ctds
   | _ -> Other
+
+let tydecl_of_classinfo ci =
+  { ptype_name = ci.pci_name
+  ; ptype_params = ci.pci_params
+  ; ptype_loc = ci.pci_loc
+  ; ptype_attributes = ci.pci_attributes
+  ; ptype_cstrs = []
+  ; ptype_kind = Ptype_abstract (* we view classes as abstract types *)
+  ; ptype_private = Public
+  ; ptype_manifest = None
+  }
 
 (** main is the mapper that is used on the whole file after
     the initial parameters have been computed.
@@ -601,18 +732,16 @@ let rec main super reify_all module_lid =
     List.map str_witness types
     @ (* then we extend ty_desc and desc_fun.view *)
     List.concat (List.map (new_desc module_path) types)
+    @ (List.map ext_equal types) (* then we extend equal *)
   and sig_desc types =
     List.map sig_witness types
   and str_exn e =
     match e.pext_kind with
     | Pext_decl (args, _) ->
-      let args = List.map (witness []) (
-          match args with
-          | Pcstr_tuple cts -> cts
-          | Pcstr_record lds -> List.map (fun ld -> ld.pld_type) lds)
+      let lds = lds_of_args args
       and constr = e.pext_name.txt
       in
-      [make_ext_con [%expr Exn] [%pat? Exn] constr args]
+      [make_ext_con false [] [%expr Exn] [%pat? Exn] lds constr]
     | _ -> [] (* TODO DEAL WITH THIS CASE  *)
   and sig_exn _ = []
   and str_typ_ext e =
@@ -620,12 +749,14 @@ let rec main super reify_all module_lid =
     and ty = witness_lid e.ptyext_path.txt in
     List.map (ext_constructor ty params) e.ptyext_constructors
   and sig_typ_ext e = []
+  in let str_class cis = str_desc (List.map tydecl_of_classinfo cis)
+  and sig_class cis = sig_desc (List.map tydecl_of_classinfo cis)
   in
   let new_str_items =
-    new_items str_desc str_exn str_typ_ext reify_all
+    new_items str_class str_desc str_exn str_typ_ext reify_all
       inside_module module_name -< str_proj in
   let new_sig_items =
-    new_items sig_desc sig_exn sig_typ_ext reify_all
+    new_items sig_class sig_desc sig_exn sig_typ_ext reify_all
       inside_module module_name -< sig_proj in
 
   let rec self =

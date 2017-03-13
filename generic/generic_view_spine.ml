@@ -18,6 +18,8 @@ open Ty.T
 open Desc.T
 let desc = Desc_fun.view
 
+let local_invalid_arg str = invalid_arg (__MODULE__ ^ "." ^ str)
+
 (**
 We call left spine the path from the root of a tree to its
 leftmost leaf.  The spine generic view represent the possibly
@@ -89,7 +91,7 @@ let rec spine_of_product : type a b . (a -> b) -> a Product.tuple -> b spine
      App (spine_rest, t, x)
 ;;
 let spine_of_variant (Desc.Con.Conap (desc,args)) =
-  spine_of_product desc.embed (desc.args, args)   (* we should rename [desc.args] to [desc.args_ty] *)
+  spine_of_product desc.embed (Desc.Con.product desc, args)   (* we should rename [desc.args] to [desc.args_ty] *)
 ;;
 
 let rec spine : type a . a ty -> a -> a spine
@@ -97,7 +99,7 @@ let rec spine : type a . a ty -> a -> a spine
   | Char   -> Con x
   | Int    -> Con x
   | Float  -> Con x
-  | Lazy t -> invalid_arg (__MODULE__ ^ ".spine: lazy")
+  | Lazy t -> local_invalid_arg "spine: lazy"
   | _ -> match desc t with
          | Product (p, {fwd;bck}) -> spine_of_product fwd (p, bck x)
          | Record r -> spine_of_product r.iso.fwd (Desc.Record.tuple r x)
@@ -107,7 +109,7 @@ let rec spine : type a . a ty -> a -> a spine
          | Class c -> Con x
          | Abstract -> raise Exn.Not_yet_implemented (* TODO compute the spine using the concrete representation *)
          | Extensible e -> raise Exn.Not_yet_implemented (* TODO spine of extensible *)
-         | NoDesc -> invalid_arg (__MODULE__ ^ ".spine")
+         | NoDesc -> local_invalid_arg "spine"
     | Synonym (t', Equal.Refl) -> spine t' x
 ;;
 

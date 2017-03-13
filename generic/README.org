@@ -1,0 +1,2 @@
+* A Generic Programming Library for OCaml
+[[https://balez.github.io/generic/][Documentation]]

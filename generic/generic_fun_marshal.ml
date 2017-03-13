@@ -36,9 +36,12 @@ let desc = Desc_fun.view
 let print_obj = Obj_inspect.print_obj
 
 (**************************************************)
+let debug = true
 exception Serialize_exception of string
-exception Anti_unify_exception (* TODO better name *)
 
+(* [exn s f] forces the execution of [f], and re-raise all Serialize exceptions,
+any other exception is caught and a new Serialize_exception is thrown with message [s]
+*)
 let exn s f = try Lazy.force f
   with Serialize_exception _ as e -> raise e
      | _ -> raise (Serialize_exception s)
@@ -94,8 +97,6 @@ let with_field v i f =
      f (field v i);
      let _ = Stack.pop path in ()
 
-(* let field v i = assert false *)
-
 (* Updating procedure for abstract values *)
 let abstract_update = (Stack.create () : (unit -> unit) Stack.t)
 
@@ -110,7 +111,7 @@ let is_custom s v =
 
 let ty_not_comparable : type a . a ty -> bool = function
   | (Desc.Poly.Poly_variant _) -> true
-  | (Desc.Object.T _) -> true
+  | (Desc.Object.Object _) -> true
   | _ -> false
 
 let is_char v =
@@ -151,7 +152,7 @@ let restore_abstract_edges () =
 
 let check_if p v = (guard -< p) >>. visit_val
 
-(* TODO what exceptions are raised?  *)
+(* @raise Serialize_exception *)
 let rec convert dir t v =
   H.clear visit_ty_table;
   H.clear visit_val_table;
@@ -159,7 +160,7 @@ let rec convert dir t v =
   Stack.clear abstract_update;
   Stack.clear path;
   direction := dir;
-  let result = exn "Incompatible value" (lazy (check t v)) in
+  let result = if debug then check t v else exn "Incompatible value." (lazy (check t v)) in
   if is_from (!direction) then restore_abstract_edges ();
   H.reset visit_ty_table; (* reclaim space *)
   H.reset visit_val_table; (* reclaim space *)
@@ -194,8 +195,8 @@ and check : type a . a ty -> obj -> obj
                      visit_val v;
                    end
                  ; lazy begin
-                    guard (Ty.neq u Ty.Any);
-                    memo_check u v
+                     guard (Ty.neq u Ty.Any); (* why ? *)
+                     memo_check u v
                    end
                  ]
       with Not_found -> memo_check t v
@@ -284,7 +285,7 @@ and check_product : type p . p Product.t -> obj -> unit
   = fun p v -> check_fields_from 0 p v
 
 (* check_fields_from i p v
-will check the fields i,i+1,...(size v -1)
+will check the block fields i,i+1,...(size v -1)
 with the types given in the product description 'p'
  *)
 and check_fields_from : type p . int -> p Product.t -> obj -> unit
@@ -295,6 +296,16 @@ and check_fields_from : type p . int -> p Product.t -> obj -> unit
         (Listx.from_to a (size v - 1))
   with Invalid_argument _ ->
     raise (Serialize_exception "Block of incorrect length.")
+
+and check_record_fields : type p r . int -> (p, r) Desc.Fields.t -> (p -> r) -> obj -> unit
+  = fun i r fwd v ->
+    (* Mutable fields impose a monomorphic constraint on the
+       record type, thus they can't contain `Any' *)
+    guard (List.for_all Patterns.no_free_var' (Desc.Fields.types_of_mutable_fields r));
+    (* Recursively checking each field *)
+    check_fields_from i (Desc.Fields.product r) v;
+    (* Checking that the fields are in the same order as in the record_desc *)
+    guard (Objx.fields_all2 (==) v (to_obj (fwd (from_obj (Objx.listify v)))))
 
 (* "check_record": Since we cannot be sure that the record
 description lists the fields in the correct order, we must
@@ -307,13 +318,7 @@ field values themselves.) *)
 and check_record : type p r . (p, r) Desc.Record.t -> obj -> unit
   = fun r v ->
     check_tag 0 v;
-    (* Mutable fields impose a monomorphic constraint on the
-       record type, thus they can't contain `Any' *)
-    guard (List.for_all Patterns.no_free_var' (Desc.Record.types_of_mutable_fields r));
-    (* Recursively checking each field *)
-    check_product (Desc.Record.product r) v;
-    (* Checking that the fields are in the same order as in the record_desc *)
-    guard (Objx.fields_all2 (==) v (to_obj (r.iso.fwd (from_obj (Objx.listify v)))))
+    check_record_fields 0 r.fields r.iso.fwd v;
 
 and check_variant : type v . v Desc.Variant.cons -> obj -> unit
   = fun cs v ->
@@ -357,14 +362,14 @@ and check_poly_variant : type v . v Desc.Poly.t -> obj -> unit
   with Not_found -> raise (Serialize_exception "Polymorphic variant, constructor not found.")
 
 and check_args : type v . v Desc.Con.t -> obj -> unit
-  = fun (Desc.Con.Con c) -> check_product c.args
+  = fun (Desc.Con.Con c) -> check_record_fields 0 c.args c.embed
 
 (* Singleton constructor *)
 and check_single : type v . v Desc.Con.t -> obj -> unit
   = fun (Desc.Con.Con c) v ->
-  let open Product.T in
+  let open Desc.Fields.T in
   match c.args with
-  | Cons (t, Nil) -> check_field t v 1
+  | Cons ({ty;_}, Nil) -> check_field ty v 1
   | _ -> raise (Serialize_exception "Polymorphic variant, invalid singleton constructor.")
 
 and check_extensible : type t . t Desc.Ext.t -> obj -> unit
@@ -373,7 +378,7 @@ and check_extensible : type t . t Desc.Ext.t -> obj -> unit
       visit_val_add v (to_obj w);
       let Desc.Con.Con c = Desc.Ext.con x w
       in one_of [ lazy (guard (tag v == object_tag)) (* constant constructor *)
-                ; lazy (check_fields_from 1 c.args (to_obj w))]
+                ; lazy (check_record_fields 1 c.args c.embed (to_obj w))]
   with Not_found -> raise (Serialize_exception "Extensible type, constructor not found.")
 
 (* (comment from stdlib/lazy.ml)
@@ -431,10 +436,21 @@ let to_bytes : 'a ty -> 'a -> Marshal.extern_flags list -> bytes
 let safe_cast : 'a ty -> obj -> 'a
   = fun t v ->
     if is_block v && size v == 2 then
-      let ty = Desc.Ext.fix (Ty_desc.ext t) (from_obj (field v 0))
+      let ty = Generic_fun.Deepfix.deepfix (Ty t) (from_obj (field v 0))
       and rep = field v 1
       in if ty = t then from_repr t rep
-      else raise (Serialize_exception "The serialized value has a different type than was expected.")
+      else
+        begin
+          if debug then
+            begin
+              print_endline "*** safe_cast: the deserialized type witness doesn't match the given type witness.";
+              print_endline "*** argument witness:";
+              Obj_inspect.print_obj t;
+              print_endline "*** deserialized witness:";
+              Obj_inspect.print_obj ty;
+            end;
+          raise (Serialize_exception "The serialized value has a different type than was expected.")
+        end
     else raise (Serialize_exception ("Incorrect serialized value, it was not serialized using module " ^ __MODULE__))
 
 let from_channel : 'a ty -> in_channel -> 'a

@@ -59,6 +59,7 @@ type 'a t = 'a ty
 (* ** Forgetting the index
 The GADT syntax allows us to forget the type index using existential quantification.
 The type =ty'= is the union of all ='a ty= for all ='a=.
+TODO: rename ty' to typename
 *)
 type ty' = E : 'a ty -> ty'
 
@@ -89,6 +90,14 @@ let any = Any
 (* *** Some Patterns
 *)
 let pair = T.Pair (Any, Any)
+let triple = T.Triple (Any,Any,Any)
+let quadruple = T.Quadruple (Any,Any,Any,Any)
+let quintuple = T.Quintuple (Any,Any,Any,Any,Any)
+let sextuple = T.Sextuple (Any,Any,Any,Any,Any,Any)
+let septuple = T.Septuple (Any,Any,Any,Any,Any,Any,Any)
+let octuple = T.Octuple (Any,Any,Any,Any,Any,Any,Any,Any)
+let nonuple = T.Nonuple (Any,Any,Any,Any,Any,Any,Any,Any,Any)
+let decuple = T.Decuple (Any,Any,Any,Any,Any,Any,Any,Any,Any,Any)
 let option = T.Option Any
 let list = T.List Any
 let array = T.Array Any
@@ -138,6 +147,13 @@ let conpat' (E t) = E (conpat t)
 (* * Dynamic values
 *)
 
-type 'a typed = 'a ty * 'a
+module Typed = struct
+  type 'a typed = 'a ty * 'a
+end
+type 'a typed = 'a Typed.typed
 
-type dyn = Dyn : 'a typed -> dyn
+
+module Dyn = struct
+  type dyn = Dyn : 'a typed -> dyn
+end
+type dyn = Dyn.dyn = Dyn : 'a typed -> dyn

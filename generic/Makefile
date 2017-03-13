@@ -29,12 +29,12 @@ METAQUOT=$(shell ocamlfind query ppx_tools)/ppx_metaquot
 # linking order of the corresponding cmos.  All the
 # namespaces are linked before the ml files.
 
-NS=generic_util.ml generic_core.ml generic_view.ml generic_fun.ml
+NS=generic_util.ml generic_core.ml generic_view.ml generic_fun.ml generic.ml
 NSI=
 
 ML=\
-generic_util_app.ml\
 generic_util_fun.ml\
+generic_util_app.ml\
 generic_util_hash.ml\
 generic_util_iter.ml\
 generic_util_list.ml\
@@ -46,7 +46,6 @@ generic_util_sum.ml\
 generic_util_option.ml\
 generic_util_monad.ml\
 generic_core_ty.ml\
-generic_core_equal.ml\
 generic_core_product.ml\
 generic_core_desc.ml\
 generic_core_ty_desc.ml\
@@ -56,12 +55,24 @@ generic_core_consumer.ml\
 generic_core_desc_fun.ml\
 generic_core_antiunify.ml\
 generic_core_repr.ml\
+generic_core_equal.ml\
 generic_view_spine.ml\
+generic_view_sumprod.ml\
+generic_view_conlist.ml\
+generic_fun_uniplate.ml\
+generic_fun_multiplate.ml\
+generic_fun_deepfix.ml\
 generic_fun_marshal.ml\
+generic_fun_equal.ml\
 
 MLI=\
+generic_util_obj.mli\
+generic_util_obj_inspect.mli\
+generic_util_app.mli\
+generic_util_fun.mli\
+generic_util_iter.mli\
+generic_util_sum.mli\
 generic_core_antiunify.mli\
-generic_core_equal.mli\
 generic_core_extensible.mli\
 generic_core_consumer.mli\
 generic_core_patterns.mli\
@@ -71,20 +82,23 @@ generic_core_ty.mli\
 generic_core_desc_fun.mli\
 generic_core_desc.mli\
 generic_core_repr.mli\
-generic_util_obj.mli\
-generic_util_obj_inspect.mli\
-generic_util_app.mli\
-generic_util_fun.mli\
-generic_util_iter.mli\
-generic_util_sum.mli\
+generic_core_equal.mli\
+generic_view_spine.mli\
+generic_view_sumprod.mli\
+generic_view_conlist.mli\
 generic_fun_marshal.mli\
+generic_fun_uniplate.mli\
+generic_fun_multiplate.mli\
+generic_fun_equal.mli
 
-# MAIN is the list of main files
-MAIN_ML=\
+# OTHER is the list of independent files from the library (ppx, tests)
+OTHER_ML=\
+reify.ml\
 generic_test_marshal.ml\
+generic_test_multiplate.ml\
 
-# interfaces for the main files
-MAIN_MLI=
+# interfaces for the independent files
+OTHER_MLI=
 
 # * Rules
 .PHONY: doc ppx lib clean
@@ -103,6 +117,10 @@ reify.cmo: reify.ml
 reify: generic.cma reify.cmo
 	ocamlc -o $@ -I +compiler-libs ocamlcommon.cma $^
 
+# some times one wants to dump the source after a ppx expansion and check the results:
+tmp.cmo: tmp.ml
+	ocamlc -I +compiler-libs -c $<
+
 # NOTE about the rule "doc/index.html":
 # I added the library as a prerequisite
 # because ocamldoc complained of ubound modules otherwise.
@@ -117,14 +135,27 @@ doc/dep.dot: lib $(NS) $(NSI) $(ML) $(MLI)
 	mkdir -p doc
 	$(OCAMLDOC) -dot -o doc/dep.dot $(wordlist 2, $(words $^), $^)
 
+%.ppx: %.ml ppx
+	$(OCAMLC) -o $<.ppx.cmo -ppx ./reify -c $< -dsource
+
+generic_test_multiplate.cmo: generic_test_multiplate.ml ppx
+	$(OCAMLC) -o $@ -ppx ./reify -c $<
+
 generic_test_marshal.cmo: generic_test_marshal.ml ppx
 	$(OCAMLC) -o $@ -ppx ./reify -c $<
 
-generic_test_marshal.ppx: generic_test_marshal.ml ppx
-	$(OCAMLC) -o $@ -dsource -ppx ./reify -c $<
-
 test_marshal: generic.cma generic_test_marshal.cmo
 	$(OCAMLC) -o $@ $^
+
+generic_test_gadt.cmo: generic_test_gadt.ml ppx
+	$(OCAMLC) -o $@ -ppx ./reify -c $<
+
+generic_test_gadt.ppx: generic_test_gadt.ml ppx
+	$(OCAMLC) -o $@ -dsource -ppx ./reify -c $<
+
+test_gadt: generic.cma generic_test_gadt.cmo
+	$(OCAMLC) -o $@ $^
+
 
 # ** Build Dependencies
 # IMPORTANT: source files names may not include the character ':'
@@ -159,7 +190,7 @@ endef
 # Generate the mli to stdout
 # (we don't want to erase the hand written one)
 %.mli.auto: %.ml %.cmo
-	$(OCAMLC) -i $<
+	$(OCAMLC) -i  -I +compiler-libs -ppx $(METAQUOT) $<
 
 # This is a static pattern see info: Make > Static Usage
 $(NS:.ml=.cmo): %.cmo: %.ml
@@ -179,8 +210,8 @@ $(NSI:.mli=.cmi): %.cmi: %.mli
 -include $(MLI:.mli=.mli.dep)
 -include $(NS:.ml=.ml.dep)
 -include $(NSI:.mli=.mli.dep)
--include $(MAIN_ML:.ml=.ml.dep)
--include $(MAIN_MLI:.mli=.mli.dep)
+-include $(OTHER_ML:.ml=.ml.dep)
+-include $(OTHER_MLI:.mli=.mli.dep)
 
 # * Clean up
 
