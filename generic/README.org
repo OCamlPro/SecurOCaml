@@ -15,3 +15,5 @@ library. Other alternatives to generic primitives may be also be written using t
 * A Generic Programming Library for OCaml
 - [[https://github.com/balez/generic][Repository]]
 - [[https://balez.github.io/generic/][Documentation]]
+- [[./generic.pdf][Technical Report]]
+- [[./doc/index.html][Library Reference]]
