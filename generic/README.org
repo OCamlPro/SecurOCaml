@@ -12,7 +12,7 @@ library. Other alternatives to generic primitives may be also be written using t
 
 [[https://github.com/balez/generic/blob/master/generic_fun_marshal.ml][Implementation of type safe serialization]]
 
-* Generic Programming Library for OCaml
+* Generic Programming Library
 - [[https://github.com/balez/generic][Repository]]
 - [[https://balez.github.io/generic/][Documentation]]
 - [[./generic.pdf][Technical Report]]
