@@ -1,2 +1,17 @@
+* Type Safe Serialization
+The \ocaml{} standard library provides a few functions that perform black magic.
+Such functions are defined over the concrete memory model of the \ocaml{} value runtime representation.
+In fact one of them is actually called [[magic : 'a -> 'b]] and does what its type suggests: casting a value to an arbitrary type, which is unsafe.
+Deserialization, as implemented by [[Marshal.from_string]] is also unsafe.
+Such operations can provoke segmentation faults if used unwisely.
+Other magical operations---such as polymorphic comparisons and the polymorphic hash function---break the abstraction provided by abstract types: such types are often defined as quotients over an equivalence relation, yet the structural comparisons work on their concrete implementation instead of the equivalence classes.
+
+As part of the Secure Ocaml project, type safe serialization
+and deserialization was implemented on top of a generic
+library. Other alternatives to generic primitives may be also be written using that library, such as generic comparison and hash functions that respect type abstraction.
+
+[[https://github.com/balez/generic/blob/master/generic_fun_marshal.ml][Implementation of type safe serialization]]
+
 * A Generic Programming Library for OCaml
-[[https://balez.github.io/generic/][Documentation]]
+- [[https://github.com/balez/generic][Repository]]
+- [[https://balez.github.io/generic/][Documentation]]
