@@ -1,6 +1,6 @@
 * Type Safe Serialization
-The \ocaml{} standard library provides a few functions that perform black magic.
-Such functions are defined over the concrete memory model of the \ocaml{} value runtime representation.
+The OCaml standard library provides a few functions that perform black magic.
+Such functions are defined over the concrete memory model of the OCaml value runtime representation.
 In fact one of them is actually called [[magic : 'a -> 'b]] and does what its type suggests: casting a value to an arbitrary type, which is unsafe.
 Deserialization, as implemented by [[Marshal.from_string]] is also unsafe.
 Such operations can provoke segmentation faults if used unwisely.
